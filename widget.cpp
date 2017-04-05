@@ -157,11 +157,11 @@ void Widget::paint(QPainter *painter, QPaintEvent *event)
     painter->drawLine(QPoint(axisMaxX, axisMinY), QPoint(axisMaxX, axisMaxY));
 
     // нарисуем риски и метки
-    int deltaX = (axisMaxX - axisMinX) / mAxisXDashCount;
+    float deltaX = 1.0 * (axisMaxX - axisMinX) / mAxisXDashCount;
     float dataDeltaX = (mDataXBounds.y() - mDataXBounds.x()) / mAxisXDashCount;
     for (int i = 1; i < mAxisXDashCount; ++i) {
-        int x = axisMinX + i*deltaX;
-        painter->drawLine(QPoint(x, axisMaxY), QPoint(x, axisMaxY + mAxisXDashLen));
+        float x = axisMinX + i*deltaX;
+        painter->drawLine(QPointF(x, axisMaxY), QPointF(x, axisMaxY + mAxisXDashLen));
         painter->drawText(
             QRect(
                 QPoint(
@@ -177,11 +177,11 @@ void Widget::paint(QPainter *painter, QPaintEvent *event)
             makeAxisLabel(mDataXBounds.x() + i*dataDeltaX)
         );
     }
-    int deltaY = (axisMaxY - axisMinY) / mAxisYDashCount;
+    float deltaY = 1.0 * (axisMaxY - axisMinY) / mAxisYDashCount;
     float dataDeltaY = (mDataYBounds.y() - mDataYBounds.x()) / mAxisYDashCount;
     for (int i = 1; i < mAxisYDashCount; ++i) {
-        int y = axisMaxY - (axisMinY + i*deltaY);
-        painter->drawLine(QPoint(axisMaxX, y), QPoint(axisMaxX + mAxisYDashLen, y));
+        float y = axisMaxY - (axisMinY + i*deltaY);
+        painter->drawLine(QPointF(axisMaxX, y), QPointF(axisMaxX + mAxisYDashLen, y));
         painter->drawText(
             QRect(
                 QPoint(
