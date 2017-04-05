@@ -90,8 +90,12 @@ void Widget::mousePressEvent(QMouseEvent *event)
 void Widget::mouseReleaseEvent(QMouseEvent *event)
 {}
 
+void Widget::wheelEvent(QWheelEvent *event)
+{}
+
 void Widget::paint(QPainter *painter, QPaintEvent *event)
 {
+    // сотрем все предыдущее залив область фоном
     painter->fillRect(event->rect(), mBackgroundBrush);
 
     int minX = 0;
