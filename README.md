@@ -1,2 +1,2 @@
-# chartist
+# chartist project
 chartist project
