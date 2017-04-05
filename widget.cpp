@@ -8,7 +8,8 @@
 Widget::Widget(QWidget *parent)
     : QWidget(parent)
 {
-    optShowMouseLabels = true;
+    optShowLabelsWithMouse = true;
+    optSelectAreaWithMouse = true;
 
     setMinimumSize(640, 480);
 
@@ -19,12 +20,16 @@ Widget::Widget(QWidget *parent)
     setMouseTracking(true);
     mMousePressPos = QPoint(-1, -1);
     mMouseReleasePos = QPoint(-1, -1);
+    mIsMouseEnter = false;
+    mIsMousePressed = false;
 
     mBackgroundBrush = QBrush(Qt::white);
     mAxisPen = QPen(Qt::black, 1);
     mMouseAxisPen = QPen(Qt::blue, 1);
     mMouseAxisPen.setStyle(Qt::DashLine);
     mMouseLabelPen = QPen(Qt::blue, 1);
+    mMouseSelectAreaPen = QPen(Qt::gray, 1);
+    mMouseSelectAreaPen.setStyle(Qt::DashLine);
 
     mAxisXLeftBorderLength = 0;
     mAxisXRightBorderLength = 52;
@@ -43,15 +48,27 @@ Widget::Widget(QWidget *parent)
     mAxisLabelYAdditionalLength = 1;
 }
 
-bool Widget::showMouseLabels() const
+bool Widget::showLabelsWithMouse() const
 {
-    return optShowMouseLabels;
+    return optShowLabelsWithMouse;
 }
 
-void Widget::setShowMouseLabels(bool newValue)
+void Widget::setShowLabelsWithMouse(bool newValue)
 {
-    if (optShowMouseLabels != newValue) {
-        optShowMouseLabels = newValue;
+    if (optShowLabelsWithMouse != newValue) {
+        optShowLabelsWithMouse = newValue;
+    }
+}
+
+bool Widget::selectAreaWithMouse() const
+{
+    return optSelectAreaWithMouse;
+}
+
+void Widget::setSelectAreaWithMouse(bool newValue)
+{
+    if (optSelectAreaWithMouse != newValue) {
+        optSelectAreaWithMouse = newValue;
     }
 }
 
@@ -66,8 +83,8 @@ void Widget::paintEvent(QPaintEvent *event)
 
 void Widget::mouseMoveEvent(QMouseEvent *event)
 {
-    if (optShowMouseLabels) {
-        mMousePos = event->pos();
+    mMousePos = event->pos();
+    if (optShowLabelsWithMouse) {
         update();
     }
 }
@@ -75,23 +92,50 @@ void Widget::mouseMoveEvent(QMouseEvent *event)
 void Widget::leaveEvent(QEvent *event)
 {
     Q_UNUSED(event);
-    if (optShowMouseLabels) {
-        if (mMousePos != QPoint(-1, -1)) {
-            mMousePos = QPoint(-1, -1);
-            setCursor(Qt::ArrowCursor);
+    mIsMouseEnter = false;
+    if (optShowLabelsWithMouse) {
+        // перерисовка, чтоб стереть оси мышки с метками
+        update();
+    }
+}
+
+void Widget::enterEvent(QEvent *event)
+{
+    Q_UNUSED(event);
+    mIsMouseEnter = true;
+}
+
+void Widget::mousePressEvent(QMouseEvent *event)
+{
+    if (optSelectAreaWithMouse) {
+        if (event->button() == Qt::LeftButton) {
+            mIsMousePressed = true;
+            mMousePressPos = event->pos();
+            update();
+        } else if (event->button() == Qt::RightButton) {
+            mIsMousePressed = false;
+            mMousePressPos = QPoint(-1, -1);
+            mMouseReleasePos = QPoint(-1, -1);
             update();
         }
     }
 }
 
-void Widget::mousePressEvent(QMouseEvent *event)
-{}
-
 void Widget::mouseReleaseEvent(QMouseEvent *event)
-{}
+{
+    if (optSelectAreaWithMouse) {
+        if (event->button() == Qt::LeftButton) {
+            mIsMousePressed = false;
+            mMouseReleasePos = event->pos();
+            update();
+        }
+    }
+}
 
 void Widget::wheelEvent(QWheelEvent *event)
-{}
+{
+    Q_UNUSED(event);
+}
 
 void Widget::paint(QPainter *painter, QPaintEvent *event)
 {
@@ -140,8 +184,14 @@ void Widget::paint(QPainter *painter, QPaintEvent *event)
         painter->drawLine(QPoint(axisMaxX, y), QPoint(axisMaxX + mAxisYDashLen, y));
         painter->drawText(
             QRect(
-                QPoint(axisMaxX + mAxisYDashLen + mAxisYDashSpace, y - mAxisLabelHalfHeight),
-                QPoint(axisMaxX + mAxisYDashLen + 2*mAxisLabelHalfWidth + mAxisYDashSpace, y + mAxisLabelHalfHeight)
+                QPoint(
+                    axisMaxX + mAxisYDashLen + mAxisYDashSpace,
+                    y - mAxisLabelHalfHeight
+                ),
+                QPoint(
+                    axisMaxX + mAxisYDashLen + 2*mAxisLabelHalfWidth + mAxisYDashSpace,
+                    y + mAxisLabelHalfHeight
+                )
             ),
             Qt::AlignLeft,
             makeAxisLabel(mDataYBounds.x() + i*dataDeltaY)
@@ -149,15 +199,20 @@ void Widget::paint(QPainter *painter, QPaintEvent *event)
     }
 
     // нарисуем оси курсора мыши с метками текущих значений
-    if (optShowMouseLabels) {
+    if (optShowLabelsWithMouse) {
         int mx = mMousePos.x();
         int my = mMousePos.y();
-        if (mx >= axisMinX && mx < axisMaxX && my >= axisMinY && my < axisMaxY) {
+        if (mx >= axisMinX && mx < axisMaxX && my >= axisMinY && my < axisMaxY && mIsMouseEnter) {
             setCursor(Qt::CrossCursor);
             painter->setPen(mMouseAxisPen);
+            // оси
             painter->drawLine(QPoint(mx, axisMinY), QPoint(mx, axisMaxY + mAxisXDashLen));
             painter->drawLine(QPoint(axisMinX, my), QPoint(axisMaxX + mAxisYDashLen, my));
             painter->setPen(mMouseLabelPen);
+            // риски
+            painter->drawLine(QPoint(mx, axisMaxY), QPoint(mx, axisMaxY + mAxisXDashLen));
+            painter->drawLine(QPoint(axisMaxX, my), QPoint(axisMaxX + mAxisYDashLen, my));
+            // метки
             QPoint lefttop, rightbottom;
             lefttop = QPoint(
                 mx - mAxisLabelHalfWidth,
@@ -225,8 +280,50 @@ void Widget::paint(QPainter *painter, QPaintEvent *event)
                 makeAxisLabel(getCurrentValue(QPoint(axisMinY, axisMaxY), mDataYBounds, axisMaxY - my))
             );
         } else {
-            mMousePos = QPoint(-1, -1);
             setCursor(Qt::ArrowCursor);
+        }
+    }
+
+    // нарисуем выделение области на графике
+    if (optSelectAreaWithMouse) {
+        int mx = mMousePressPos.x();
+        int my = mMousePressPos.y();
+        if (mx != -1 && my != -1) {
+            // оси выделенной области не должны выходить за основные оси
+            if (mx < axisMinX) {
+                mx = axisMinX;
+            }
+            if (mx > axisMaxX - 1) {
+                mx = axisMaxX - 1;
+            }
+            if (my < axisMinY) {
+                my = axisMinY;
+            }
+            if (my > axisMaxY - 1) {
+                my = axisMaxY - 1;
+            }
+            painter->setPen(mMouseSelectAreaPen);
+            painter->drawLine(QPoint(mx, axisMinY), QPoint(mx, axisMaxY));
+            painter->drawLine(QPoint(axisMinX, my), QPoint(axisMaxX, my));
+            mx = mIsMousePressed ? mMousePos.x() : mMouseReleasePos.x();
+            my = mIsMousePressed ? mMousePos.y() : mMouseReleasePos.y();
+            if ((mx != -1 && my != -1) || mIsMousePressed) {
+                // оси выделенной области не должны выходить за основные оси
+                if (mx < axisMinX) {
+                    mx = axisMinX;
+                }
+                if (mx > axisMaxX - 1) {
+                    mx = axisMaxX - 1;
+                }
+                if (my < axisMinY) {
+                    my = axisMinY;
+                }
+                if (my > axisMaxY - 1) {
+                    my = axisMaxY - 1;
+                }
+                painter->drawLine(QPoint(mx, axisMinY), QPoint(mx, axisMaxY));
+                painter->drawLine(QPoint(axisMinX, my), QPoint(axisMaxX, my));
+            }
         }
     }
 }
