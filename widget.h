@@ -10,12 +10,15 @@ class Widget : public QWidget
     Q_OBJECT
 public:
     Widget(QWidget *parent);
-    bool showMouseLabels() const;
-    void setShowMouseLabels(bool newValue);
+    bool showLabelsWithMouse() const;
+    void setShowLabelsWithMouse(bool newValue);
+    bool selectAreaWithMouse() const;
+    void setSelectAreaWithMouse(bool newValue);
 protected:
     void paintEvent(QPaintEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
     void leaveEvent(QEvent *event) override;
+    void enterEvent(QEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
     void wheelEvent(QWheelEvent *event) override;
@@ -33,11 +36,16 @@ private:
     QPoint mMousePos;
     QPoint mMousePressPos;
     QPoint mMouseReleasePos;
+    bool mIsMouseEnter;
+    bool mIsMousePressed;
 
     QBrush mBackgroundBrush;
     QPen mAxisPen;
     QPen mMouseAxisPen;
     QPen mMouseLabelPen;
+    QPen mMouseSelectAreaPen;
+    QBrush mMouseSelectAreaBrush;
+    QPen mMouseSelectAreaLabelsPen;
 
     int mAxisXLeftBorderLength;
     int mAxisXRightBorderLength;
@@ -55,7 +63,8 @@ private:
     int mAxisLabelXAdditionalLength;
     int mAxisLabelYAdditionalLength;
 
-    bool optShowMouseLabels;
+    bool optShowLabelsWithMouse;
+    bool optSelectAreaWithMouse;
 };
 
 #endif

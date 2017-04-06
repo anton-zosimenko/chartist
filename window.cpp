@@ -6,10 +6,10 @@
 
 Window::Window()
 {
-    setWindowTitle(tr("2D Painting"));
+    setWindowTitle(tr("Chartist"));
 
     Widget *native = new Widget(this);
-    QLabel *nativeLabel = new QLabel(tr("Native"));
+    QLabel *nativeLabel = new QLabel(tr("Look at chart below"));
     nativeLabel->setAlignment(Qt::AlignHCenter);
 
     QGridLayout *layout = new QGridLayout;
