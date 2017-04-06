@@ -44,6 +44,8 @@ private:
     QPen mMouseAxisPen;
     QPen mMouseLabelPen;
     QPen mMouseSelectAreaPen;
+    QBrush mMouseSelectAreaBrush;
+    QPen mMouseSelectAreaLabelsPen;
 
     int mAxisXLeftBorderLength;
     int mAxisXRightBorderLength;
