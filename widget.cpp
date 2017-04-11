@@ -202,6 +202,151 @@ void Widget::paint(QPainter *painter, QPaintEvent *event)
         );
     }
 
+    // нарисуем выделение области на графике
+    if (optSelectAreaWithMouse) {
+        int mx1 = mMousePressPos.x();
+        int my1 = mMousePressPos.y();
+        if (mx1 != -1 && my1 != -1) {
+            // оси выделенной области не должны выходить за основные оси
+            if (mx1 < axisMinX) {
+                mx1 = axisMinX;
+            }
+            if (mx1 > axisMaxX - 1) {
+                mx1 = axisMaxX - 1;
+            }
+            if (my1 < axisMinY) {
+                my1 = axisMinY;
+            }
+            if (my1 > axisMaxY - 1) {
+                my1 = axisMaxY - 1;
+            }
+            // оси
+            painter->setPen(mMouseSelectAreaPen);
+            painter->drawLine(QPoint(mx1, axisMinY), QPoint(mx1, axisMaxY));
+            painter->drawLine(QPoint(axisMinX, my1), QPoint(axisMaxX, my1));
+            // риски рисуем только если клик был внутри области графика
+            painter->setPen(mMouseSelectAreaLabelsPen);
+            if (mMousePressPos.x() >= axisMinX &&
+                mMousePressPos.x() < axisMaxX &&
+                mMousePressPos.y() >= axisMinY &&
+                mMousePressPos.y() < axisMaxY
+            ) {
+                painter->drawLine(
+                    QPoint(mx1, axisMaxY),
+                    QPoint(mx1, axisMaxY + mAxisXDashLen)
+                );
+                painter->drawLine(
+                    QPoint(axisMaxX, my1),
+                    QPoint(axisMaxX + mAxisYDashLen, my1)
+                );
+            }
+            // метки на осях координат
+            drawAxisLabels(
+                painter,
+                QPoint(mx1, my1),
+                QPoint(axisMinX, axisMaxX),
+                QPoint(axisMinY, axisMaxY)
+            );
+            int mx2 = mIsMousePressed ? mMousePos.x() : mMouseReleasePos.x();
+            int my2 = mIsMousePressed ? mMousePos.y() : mMouseReleasePos.y();
+            if ((mx2 != -1 && my2 != -1) || mIsMousePressed) {
+                // оси выделенной области не должны выходить за основные оси
+                if (mx2 < axisMinX) {
+                    mx2 = axisMinX;
+                }
+                if (mx2 > axisMaxX - 1) {
+                    mx2 = axisMaxX - 1;
+                }
+                if (my2 < axisMinY) {
+                    my2 = axisMinY;
+                }
+                if (my2 > axisMaxY - 1) {
+                    my2 = axisMaxY - 1;
+                }
+                // оси
+                painter->setPen(mMouseSelectAreaPen);
+                painter->drawLine(QPoint(mx2, axisMinY), QPoint(mx2, axisMaxY));
+                painter->drawLine(QPoint(axisMinX, my2), QPoint(axisMaxX, my2));
+                // риски рисуем только если мышь внутри области графика
+                painter->setPen(mMouseSelectAreaLabelsPen);
+                if ((mIsMousePressed ? mMousePos.x() : mMouseReleasePos.x()) >= axisMinX &&
+                    (mIsMousePressed ? mMousePos.x() : mMouseReleasePos.x()) < axisMaxX &&
+                    (mIsMousePressed ? mMousePos.y() : mMouseReleasePos.y()) >= axisMinY &&
+                    (mIsMousePressed ? mMousePos.y() : mMouseReleasePos.y()) < axisMaxY
+                ) {
+                    painter->drawLine(
+                        QPoint(mx2, axisMaxY),
+                        QPoint(mx2, axisMaxY + mAxisXDashLen)
+                    );
+                    painter->drawLine(
+                        QPoint(axisMaxX, my2),
+                        QPoint(axisMaxX + mAxisYDashLen, my2)
+                    );
+                }
+                // метки на осях координат
+                drawAxisLabels(
+                    painter,
+                    QPoint(mx2, my2),
+                    QPoint(axisMinX, axisMaxX),
+                    QPoint(axisMinY, axisMaxY)
+                );
+                // вывести метки на графике
+                // область вывода правее и ниже пересечения осей
+                QPoint lefttop2 = QPoint(
+                    mx2 + 1,
+                    my2
+                );
+                QPoint rightbottom2 = QPoint(
+                    mx2 + 4*mAxisLabelHalfWidth + 1,
+                    my2 + 2*mAxisLabelHalfHeight
+                );
+                // надпись не выходит за область графика
+                if (rightbottom2.x() >= axisMaxX - 1) {
+                    rightbottom2.setX(axisMaxX - 1);
+                    lefttop2.setX(rightbottom2.x() - 4*mAxisLabelHalfWidth);
+                }
+                if (rightbottom2.y() >= axisMaxY - 1) {
+                    rightbottom2.setY(axisMaxY - 1);
+                    lefttop2.setY(rightbottom2.y() - 2*mAxisLabelHalfHeight);
+                }
+                // найти пройденное расстояние, для отображения на графике
+                float xVal1 = getCurrentAxisValue(
+                    QPoint(axisMinX, axisMaxX),
+                    mDataXBounds,
+                    mx1
+                );
+                float yVal1 = getCurrentAxisValue(
+                    QPoint(axisMinY, axisMaxY),
+                    mDataYBounds,
+                    my1
+                );
+                float xVal2 = getCurrentAxisValue(
+                    QPoint(axisMinX, axisMaxX),
+                    mDataXBounds,
+                    mx2
+                );
+                float yVal2 = getCurrentAxisValue(
+                    QPoint(axisMinY, axisMaxY),
+                    mDataYBounds,
+                    my2
+                );
+                // рисуем значения в точке отпускания кнопки мыши
+                painter->drawText(
+                    QRect(lefttop2, rightbottom2),
+                    Qt::AlignCenter,
+                    makeAxisLabel(qAbs(xVal2 - xVal1)) +
+                        QString(";") +
+                        makeAxisLabel(qAbs(yVal2 - yVal1))
+                );
+                // зальем область между метками
+                painter->fillRect(
+                    QRect(QPoint(mx1, my1), QPoint(mx2, my2)),
+                    mMouseSelectAreaBrush
+                );
+            }
+        }
+    }
+
     // нарисуем оси курсора мыши с метками текущих значений
     if (optShowLabelsWithMouse) {
         int mx = mMousePos.x();
@@ -235,204 +380,14 @@ void Widget::paint(QPainter *painter, QPaintEvent *event)
                 );
             }
             // метки на осях координат
-            QRect labelRect = getRectForAxisLabel(
-                mx,
+            drawAxisLabels(
+                painter,
+                QPoint(mx, my),
                 QPoint(axisMinX, axisMaxX),
-                QPoint(axisMinY, axisMaxY),
-                true
-            );
-            QRect biggerRect = getOuterRectForAxisLabel(labelRect);
-            painter->fillRect(biggerRect, mBackgroundBrush);
-            painter->drawRect(biggerRect);
-            float xCurrentValue = getCurrentValue(
-                QPoint(axisMinX, axisMaxX),
-                mDataXBounds,
-                mx
-            );
-            painter->drawText(
-                labelRect,
-                Qt::AlignCenter,
-                makeAxisLabel(xCurrentValue)
-            );
-            labelRect = getRectForAxisLabel(
-                my,
-                QPoint(axisMinX, axisMaxX),
-                QPoint(axisMinY, axisMaxY),
-                false
-            );
-            biggerRect = getOuterRectForAxisLabel(labelRect);
-            painter->fillRect(biggerRect, mBackgroundBrush);
-            painter->drawRect(biggerRect);
-            float yCurrentValue = getCurrentValue(
-                QPoint(axisMinY, axisMaxY),
-                mDataYBounds,
-                axisMaxY - my
-            );
-            painter->drawText(
-                labelRect,
-                Qt::AlignCenter,
-                makeAxisLabel(yCurrentValue)
+                QPoint(axisMinY, axisMaxY)
             );
         } else {
             setCursor(Qt::ArrowCursor);
-        }
-    }
-
-    // нарисуем выделение области на графике
-    if (optSelectAreaWithMouse) {
-        int mx1 = mMousePressPos.x();
-        int my1 = mMousePressPos.y();
-        if (mx1 != -1 && my1 != -1) {
-            // оси выделенной области не должны выходить за основные оси
-            if (mx1 < axisMinX) {
-                mx1 = axisMinX;
-            }
-            if (mx1 > axisMaxX - 1) {
-                mx1 = axisMaxX - 1;
-            }
-            if (my1 < axisMinY) {
-                my1 = axisMinY;
-            }
-            if (my1 > axisMaxY - 1) {
-                my1 = axisMaxY - 1;
-            }
-            painter->setPen(mMouseSelectAreaPen);
-            painter->drawLine(QPoint(mx1, axisMinY), QPoint(mx1, axisMaxY));
-            painter->drawLine(QPoint(axisMinX, my1), QPoint(axisMaxX, my1));
-            // вывести метки
-            // область вывода правее и выше пересечения осей
-            QPoint lefttop1 = QPoint(
-                mx1 + 1,
-                my1 - 2*mAxisLabelHalfHeight - 1
-            );
-            QPoint rightbottom1 = QPoint(
-                mx1 + 4*mAxisLabelHalfWidth + 1,
-                my1 - 1
-            );
-            // область вывода не выводим за границы графика
-            if (lefttop1.x() <= axisMinX + 1) {
-                lefttop1.setX(axisMinX + 1);
-                rightbottom1.setX(lefttop1.x() + 4*mAxisLabelHalfWidth);
-            }
-            if (lefttop1.y() <= axisMinY + 1) {
-                lefttop1.setY(axisMinY + 1);
-                rightbottom1.setY(lefttop1.y() + 2*mAxisLabelHalfHeight);
-            }
-            if (rightbottom1.x() >= axisMaxX - 1) {
-                rightbottom1.setX(axisMaxX - 1);
-                lefttop1.setX(rightbottom1.x() - 4*mAxisLabelHalfWidth);
-            }
-            /*// под первой меткой должна влезти вторая
-            if (rightbottom.y() >= axisMaxY - 1 - 2*mAxisLabelHalfHeight) {
-                rightbottom.setY(axisMaxY - 1 - 2*mAxisLabelHalfHeight);
-                lefttop.setY(rightbottom.y() - 2*mAxisLabelHalfHeight);
-            }*/
-            float xVal1 = getCurrentValue(
-                QPoint(axisMinX, axisMaxX),
-                mDataXBounds,
-                mx1
-            );
-            float yVal1 = getCurrentValue(
-                QPoint(axisMinY, axisMaxY),
-                mDataYBounds,
-                my1
-            );
-            int mx2 = mIsMousePressed ? mMousePos.x() : mMouseReleasePos.x();
-            int my2 = mIsMousePressed ? mMousePos.y() : mMouseReleasePos.y();
-            if ((mx2 != -1 && my2 != -1) || mIsMousePressed) {
-                // оси выделенной области не должны выходить за основные оси
-                if (mx2 < axisMinX) {
-                    mx2 = axisMinX;
-                }
-                if (mx2 > axisMaxX - 1) {
-                    mx2 = axisMaxX - 1;
-                }
-                if (my2 < axisMinY) {
-                    my2 = axisMinY;
-                }
-                if (my2 > axisMaxY - 1) {
-                    my2 = axisMaxY - 1;
-                }
-                painter->drawLine(QPoint(mx2, axisMinY), QPoint(mx2, axisMaxY));
-                painter->drawLine(QPoint(axisMinX, my2), QPoint(axisMaxX, my2));
-                // если нажата кнопка то для второй точки рисуем риски
-                // потому что на осях рисуются метки от перемещения мыши
-                if (mIsMousePressed) {
-                    painter->setPen(mMouseSelectAreaLabelsPen);
-                    // риски рисуем только если мышь внутри области графика
-                    if (mMousePos.x() >= axisMinX &&
-                        mMousePos.x() < axisMaxX &&
-                        mMousePos.y() >= axisMinY &&
-                        mMousePos.y() < axisMaxY
-                    ) {
-                        painter->drawLine(
-                            QPoint(mx2, axisMaxY),
-                            QPoint(mx2, axisMaxY + mAxisXDashLen)
-                        );
-                        painter->drawLine(
-                            QPoint(axisMaxX, my2),
-                            QPoint(axisMaxX + mAxisYDashLen, my2)
-                        );
-                    }
-                }
-                // вывести метки
-                // область вывода правее и ниже пересечения осей
-                QPoint lefttop2 = QPoint(
-                    mx2 + 1,
-                    my2
-                );
-                QPoint rightbottom2 = QPoint(
-                    mx2 + 4*mAxisLabelHalfWidth + 1,
-                    my2 + 2*mAxisLabelHalfHeight
-                );
-                /*// вторая метка не должна затереть первую
-                if (lefttop.y() <= axisMinY + 1 + 2*mAxisLabelHalfHeight) {
-                    lefttop.setY(axisMinY + 1 + 2*mAxisLabelHalfHeight);
-                    rightbottom.setY(lefttop.y() + 2*mAxisLabelHalfHeight);
-                }*/
-                if (rightbottom2.x() >= axisMaxX - 1) {
-                    rightbottom2.setX(axisMaxX - 1);
-                    lefttop2.setX(rightbottom2.x() - 4*mAxisLabelHalfWidth);
-                }
-                if (rightbottom2.y() >= axisMaxY - 1) {
-                    rightbottom2.setY(axisMaxY - 1);
-                    lefttop2.setY(rightbottom2.y() - 2*mAxisLabelHalfHeight);
-                }
-                float xVal2 = getCurrentValue(
-                    QPoint(axisMinX, axisMaxX),
-                    mDataXBounds,
-                    mx2
-                );
-                float yVal2 = getCurrentValue(
-                    QPoint(axisMinY, axisMaxY),
-                    mDataYBounds,
-                    my2
-                );
-                // нормализуем координаты меток, чтоб они не накладывались
-                // одна на другую
-                ;
-                // рисуем значения в точке отпускания кнопки мыши
-                painter->drawText(
-                    QRect(lefttop2, rightbottom2),
-                    Qt::AlignCenter,
-                    makeAxisLabel(qAbs(xVal2 - xVal1)) +
-                        QString(";") +
-                        makeAxisLabel(qAbs(yVal2 - yVal1))
-                );
-                // зальем область между метками
-                painter->fillRect(
-                    QRect(QPoint(mx1, my1), QPoint(mx2, my2)),
-                    mMouseSelectAreaBrush
-                );
-            }
-            // рисуем значения в точке клика
-            painter->drawText(
-                QRect(lefttop1, rightbottom1),
-                Qt::AlignCenter,
-                makeAxisLabel(xVal1) +
-                    QString(";") +
-                    makeAxisLabel(yVal1)
-            );
         }
     }
 }
@@ -455,7 +410,7 @@ QString Widget::makeAxisLabel(const float value) const
     return label;
 }
 
-float Widget::getCurrentValue(
+float Widget::getCurrentAxisValue(
     const QPoint &axisBounds,
     const QPointF &dataBounds,
     const int currentAxisValue
@@ -533,5 +488,52 @@ QRect Widget::getOuterRectForAxisLabel(
             labelRect.bottomRight().x() + mAxisLabelXAdditionalLength,
             labelRect.bottomRight().y() + mAxisLabelYAdditionalLength
         )
+    );
+}
+
+void Widget::drawAxisLabels(
+    QPainter *painter,
+    const QPoint &pos,
+    const QPoint &axisXBounds,
+    const QPoint &axisYBounds
+) const
+{
+    QRect labelRect = getRectForAxisLabel(
+        pos.x(),
+        axisXBounds,
+        axisYBounds,
+        true
+    );
+    QRect biggerRect = getOuterRectForAxisLabel(labelRect);
+    painter->fillRect(biggerRect, mBackgroundBrush);
+    painter->drawRect(biggerRect);
+    float valueX = getCurrentAxisValue(
+        axisXBounds,
+        mDataXBounds,
+        pos.x()
+    );
+    painter->drawText(
+        labelRect,
+        Qt::AlignCenter,
+        makeAxisLabel(valueX)
+    );
+    labelRect = getRectForAxisLabel(
+        pos.y(),
+        axisXBounds,
+        axisYBounds,
+        false
+    );
+    biggerRect = getOuterRectForAxisLabel(labelRect);
+    painter->fillRect(biggerRect, mBackgroundBrush);
+    painter->drawRect(biggerRect);
+    float valueY = getCurrentAxisValue(
+        axisYBounds,
+        mDataYBounds,
+        pos.y()
+    );
+    painter->drawText(
+        labelRect,
+        Qt::AlignCenter,
+        makeAxisLabel(valueY)
     );
 }
