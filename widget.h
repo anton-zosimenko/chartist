@@ -25,10 +25,25 @@ protected:
 private:
     void paint(QPainter *painter, QPaintEvent *event);
     QString makeAxisLabel(const float value) const;
-    float getCurrentValue(
+    float getCurrentAxisValue(
         const QPoint &axisBounds,
         const QPointF &dataBounds,
         const int currentAxisValue
+    ) const;
+    QRect getRectForAxisLabel(
+        int val,
+        const QPoint &axisXBounds,
+        const QPoint &axisYBounds,
+        bool isAxisLabelX
+    ) const;
+    QRect getOuterRectForAxisLabel(
+        const QRect &labelRect
+    ) const;
+    void drawAxisLabels(
+        QPainter *painter,
+        const QPoint &pos,
+        const QPoint &axisXBounds,
+        const QPoint &axisYBounds
     ) const;
 
     QPointF mDataXBounds;
