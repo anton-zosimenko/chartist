@@ -30,6 +30,15 @@ private:
         const QPointF &dataBounds,
         const int currentAxisValue
     ) const;
+    QRect getRectForAxisLabel(
+        int val,
+        const QPoint &axisXBounds,
+        const QPoint &axisYBounds,
+        bool isAxisLabelX
+    ) const;
+    QRect getOuterRectForAxisLabel(
+        const QRect &labelRect
+    ) const;
 
     QPointF mDataXBounds;
     QPointF mDataYBounds;
