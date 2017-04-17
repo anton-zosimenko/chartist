@@ -1,15 +1,18 @@
 #ifndef WIDGET_H
 #define WIDGET_H
 
+#include "core.h"
+
 #include <QWidget>
 #include <QBrush>
 #include <QPen>
+#include <QString>
 
 class Widget : public QWidget
 {
     Q_OBJECT
 public:
-    Widget(QWidget *parent);
+    Widget(QWidget *parent, const QString &fileName);
     bool showLabelsWithMouse() const;
     void setShowLabelsWithMouse(bool newValue);
     bool selectAreaWithMouse() const;
@@ -80,6 +83,8 @@ private:
 
     bool optShowLabelsWithMouse;
     bool optSelectAreaWithMouse;
+
+    DataSeries mDataSeries;
 };
 
 #endif

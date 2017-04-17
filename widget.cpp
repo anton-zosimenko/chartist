@@ -1,11 +1,13 @@
 #include "widget.h"
+#include "reader.h"
+#include "core.h"
 
 #include <QPainter>
 #include <QPaintEvent>
 #include <QMouseEvent>
 #include <QWheelEvent>
 
-Widget::Widget(QWidget *parent)
+Widget::Widget(QWidget *parent, const QString &fileName)
     : QWidget(parent)
 {
     optShowLabelsWithMouse = true;
@@ -50,6 +52,10 @@ Widget::Widget(QWidget *parent)
     mMaxAxisLabelLength = 6;
     mAxisLabelXAdditionalLength = 1;
     mAxisLabelYAdditionalLength = 1;
+
+    mDataSeries = DataSeries();
+    // читаем данные из файла
+    Reader::readFromFile(fileName, &mDataSeries);
 }
 
 bool Widget::showLabelsWithMouse() const

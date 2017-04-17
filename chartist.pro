@@ -1,4 +1,4 @@
-QT += widgets
+QT += core widgets
 
 HEADERS = \
     widget.h \
