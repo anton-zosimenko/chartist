@@ -3,13 +3,18 @@
 
 #include <QGridLayout>
 #include <QLabel>
+#include <QString>
 
 Window::Window()
 {
     setWindowTitle(tr("Chartist"));
 
-    Widget *native = new Widget(this);
-    QLabel *nativeLabel = new QLabel(tr("Look at chart below"));
+    QString fileName = "GAZP_170329_170413.csv";
+    QLabel *nativeLabel = new QLabel(fileName);
+    Widget *native = new Widget(
+        this,
+        "C:\\Works\\chartist\\data\\" + fileName
+    );
     nativeLabel->setAlignment(Qt::AlignHCenter);
 
     QGridLayout *layout = new QGridLayout;

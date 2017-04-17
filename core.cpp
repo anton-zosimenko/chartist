@@ -39,7 +39,7 @@ void DataSeries::append(const Candle *data, uint64_t size)
         mData = (Candle *)realloc((void *)mData, (mSize + size) * sizeof(Candle));
     }
     if (mData == nullptr) {
-        throw std::out_of_range("Can't append data to DataSeries");
+        throw std::runtime_error("Can't append data to DataSeries");
     }
     for (uint64_t i = 0; i < size; ++i) {
         mData[mSize + i] = data[i];
