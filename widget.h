@@ -24,14 +24,20 @@ protected:
     void enterEvent(QEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
     void wheelEvent(QWheelEvent *event) override;
 private:
     void paint(QPainter *painter, QPaintEvent *event);
     QString makeAxisLabel(const float value) const;
-    float getCurrentAxisValue(
+    float getCurrentDataValue(
         const QPoint &axisBounds,
         const QPointF &dataBounds,
         const int currentAxisValue
+    ) const;
+    int getCurrentAxisValue(
+        const QPoint &axisBounds,
+        const QPointF &dataBounds,
+        const float currentDataValue
     ) const;
     QRect getRectForAxisLabel(
         int val,
@@ -56,6 +62,8 @@ private:
     QPoint mMouseReleasePos;
     bool mIsMouseEnter;
     bool mIsMousePressed;
+    bool mIsResize;
+    bool mIsCandleWidthChanged;
 
     QBrush mBackgroundBrush;
     QPen mAxisPen;
@@ -64,6 +72,9 @@ private:
     QPen mMouseSelectAreaPen;
     QBrush mMouseSelectAreaBrush;
     QPen mMouseSelectAreaLabelsPen;
+    QPen mCandlePen;
+    QBrush mCandleUpBrush;
+    QBrush mCandleDownBrush;
 
     int mAxisXLeftBorderLength;
     int mAxisXRightBorderLength;
@@ -80,6 +91,10 @@ private:
     int mMaxAxisLabelLength;
     int mAxisLabelXAdditionalLength;
     int mAxisLabelYAdditionalLength;
+    int mCandleWidth;
+    int mCandleCount;
+    int mCandleMinWidth;
+    int mCandleMaxWidth;
 
     bool optShowLabelsWithMouse;
     bool optSelectAreaWithMouse;
