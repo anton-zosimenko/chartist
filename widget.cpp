@@ -1,11 +1,11 @@
 #include "widget.h"
 #include "reader.h"
-#include "core.h"
 
 #include <QPainter>
 #include <QPaintEvent>
 #include <QMouseEvent>
 #include <QWheelEvent>
+#include <QResizeEvent>
 
 Widget::Widget(QWidget *parent, const QString &fileName)
     : QWidget(parent)
@@ -15,8 +15,8 @@ Widget::Widget(QWidget *parent, const QString &fileName)
 
     setMinimumSize(640, 480);
 
-    mDataXBounds = QPointF(-11111, 11111);
-    mDataYBounds = QPointF(0, 0.777);
+    mDataXBounds = QPointF(-1000, 1000);
+    mDataYBounds = QPointF(0, 1);
 
     mMousePos = QPoint(-1, -1);
     setMouseTracking(true);
@@ -24,6 +24,8 @@ Widget::Widget(QWidget *parent, const QString &fileName)
     mMouseReleasePos = QPoint(-1, -1);
     mIsMouseEnter = false;
     mIsMousePressed = false;
+    mIsResize = false;
+    mIsCandleWidthChanged = false;
 
     mBackgroundBrush = QBrush(Qt::white);
     mAxisPen = QPen(Qt::black, 1);
@@ -36,6 +38,9 @@ Widget::Widget(QWidget *parent, const QString &fileName)
     mouseSelectAreaBrushColor.setAlpha(80);
     mMouseSelectAreaBrush = QBrush(mouseSelectAreaBrushColor, Qt::SolidPattern);
     mMouseSelectAreaLabelsPen = QPen(mMouseSelectAreaPen.color(), 1);
+    mCandlePen = QPen(Qt::black, 1);
+    mCandleUpBrush = QBrush(Qt::green);
+    mCandleDownBrush = QBrush(Qt::red);
 
     mAxisXLeftBorderLength = 0;
     mAxisXRightBorderLength = 52;
@@ -52,6 +57,10 @@ Widget::Widget(QWidget *parent, const QString &fileName)
     mMaxAxisLabelLength = 6;
     mAxisLabelXAdditionalLength = 1;
     mAxisLabelYAdditionalLength = 1;
+    mCandleWidth = 3;
+    mCandleCount = 0;
+    mCandleMinWidth = 3;
+    mCandleMaxWidth = 101;
 
     mDataSeries = DataSeries();
     // читаем данные из файла
@@ -142,9 +151,35 @@ void Widget::mouseReleaseEvent(QMouseEvent *event)
     }
 }
 
-void Widget::wheelEvent(QWheelEvent *event)
+void Widget::resizeEvent(QResizeEvent *event)
 {
     Q_UNUSED(event);
+    mIsResize = true;
+    update();
+}
+
+void Widget::wheelEvent(QWheelEvent *event)
+{
+    if (event->angleDelta().y() > 0) {
+        if (mCandleWidth < mCandleMaxWidth / 2) {
+            mCandleWidth *= 2;
+            mIsCandleWidthChanged = true;
+        } else if (mCandleWidth < mCandleMaxWidth) {
+            mCandleWidth = mCandleMaxWidth;
+            mIsCandleWidthChanged = true;
+        }
+    } else {
+        if (mCandleWidth > mCandleMinWidth * 2) {
+            mCandleWidth /= 2;
+            mIsCandleWidthChanged = true;
+        } else if (mCandleWidth > mCandleMinWidth) {
+            mCandleWidth = mCandleMinWidth;
+            mIsCandleWidthChanged = true;
+        }
+    }
+    if (mIsCandleWidthChanged) {
+        update();
+    }
 }
 
 void Widget::paint(QPainter *painter, QPaintEvent *event)
@@ -160,6 +195,33 @@ void Widget::paint(QPainter *painter, QPaintEvent *event)
     int axisMinY = minY + mAxisYTopBorderLength;
     int axisMaxX = maxX - mAxisXRightBorderLength;
     int axisMaxY = maxY - mAxisYBottomBorderLength;
+
+    // пересчитаем диапазоны значений на осях
+    // ((при ресайзе окна или изменении ширины свечи) и наличии данных)
+    if ((mIsResize || mIsCandleWidthChanged) && mDataSeries.size() > 0) {
+        if (mIsResize) {
+            mIsResize = false;
+        } else {
+            mIsCandleWidthChanged = false;
+        }
+        // место крайней правой свечи не занимаем
+        mCandleCount = (axisMaxX - axisMinX - mCandleWidth) / mCandleWidth;
+        if (mCandleCount > (int)mDataSeries.size()) {
+            mCandleCount = mDataSeries.size();
+        }
+        float ymin = INFINITY, ymax = 0;
+        for (int i = 0; i < mCandleCount; ++i) {
+            Candle currCandle = mDataSeries.data()[mDataSeries.size() - 1 - i];
+            if (currCandle.low < ymin) {
+                ymin = currCandle.low;
+            }
+            if (currCandle.high > ymax) {
+                ymax = currCandle.high;
+            }
+        }
+        mDataYBounds = QPointF(ymin, ymax);
+        mDataXBounds = QPointF(-mCandleCount, 0);
+    }
 
     // нарисуем оси
     painter->setPen(mAxisPen);
@@ -206,6 +268,38 @@ void Widget::paint(QPainter *painter, QPaintEvent *event)
             Qt::AlignLeft,
             makeAxisLabel(mDataYBounds.x() + i*dataDeltaY)
         );
+    }
+
+    // нарисуем график
+    for (int i = 0; i < mCandleCount; ++i) {
+        Candle currCandle = mDataSeries.data()[mDataSeries.size() - 1 - i];
+        // место крайней правой свечи не занимаем
+        int xmax = axisMaxX - (i + 1) * mCandleWidth;
+        int xmin = xmax - mCandleWidth;
+        int ymax = getCurrentAxisValue(QPoint(axisMinY, axisMaxY), mDataYBounds, currCandle.high);
+        int ymin = getCurrentAxisValue(QPoint(axisMinY, axisMaxY), mDataYBounds, currCandle.low);
+        int yopn = getCurrentAxisValue(QPoint(axisMinY, axisMaxY), mDataYBounds, currCandle.open);
+        int ycls = getCurrentAxisValue(QPoint(axisMinY, axisMaxY), mDataYBounds, currCandle.close);
+        painter->setPen(mCandlePen);
+        // так как ось Y расположена сверху вниз, а рисуем мы ее снизу вверх
+        // значения надо отображать "зеркально"
+        int xavg = (xmin + xmax) / 2;
+        // тень свечи
+        painter->drawLine(
+            QPoint(xavg, axisMaxY - (ymin - axisMinY)),
+            QPoint(xavg, axisMaxY - (ymax - axisMinY))
+        );
+        QRect candleRect = QRect(
+            QPoint(xmin, axisMaxY - (yopn - axisMinY)),
+            QPoint(xmax, axisMaxY - (ycls - axisMinY))
+        );
+        // цветоное тело свечи
+        painter->fillRect(
+            candleRect,
+            currCandle.close > currCandle.open ? mCandleUpBrush : mCandleDownBrush
+        );
+        // контур свечи
+        painter->drawRect(candleRect);
     }
 
     // нарисуем выделение области на графике
@@ -316,22 +410,22 @@ void Widget::paint(QPainter *painter, QPaintEvent *event)
                     lefttop2.setY(rightbottom2.y() - 2*mAxisLabelHalfHeight);
                 }
                 // найти пройденное расстояние, для отображения на графике
-                float xVal1 = getCurrentAxisValue(
+                float xVal1 = getCurrentDataValue(
                     QPoint(axisMinX, axisMaxX),
                     mDataXBounds,
                     mx1
                 );
-                float yVal1 = getCurrentAxisValue(
+                float yVal1 = getCurrentDataValue(
                     QPoint(axisMinY, axisMaxY),
                     mDataYBounds,
                     my1
                 );
-                float xVal2 = getCurrentAxisValue(
+                float xVal2 = getCurrentDataValue(
                     QPoint(axisMinX, axisMaxX),
                     mDataXBounds,
                     mx2
                 );
-                float yVal2 = getCurrentAxisValue(
+                float yVal2 = getCurrentDataValue(
                     QPoint(axisMinY, axisMaxY),
                     mDataYBounds,
                     my2
@@ -407,6 +501,9 @@ QString Widget::makeAxisLabel(const float value) const
             while (label.length() > mMaxAxisLabelLength && dotPos < label.length() - 2) {
                 label.remove(label.length() - 1, 1);
             }
+            while (label.at(label.length() - 1) == '0' && dotPos < label.length() - 2) {
+                label.remove(label.length() - 1, 1);
+            }
         }
     } else {
         while (label.length() <= mMaxAxisLabelLength) {
@@ -416,7 +513,7 @@ QString Widget::makeAxisLabel(const float value) const
     return label;
 }
 
-float Widget::getCurrentAxisValue(
+float Widget::getCurrentDataValue(
     const QPoint &axisBounds,
     const QPointF &dataBounds,
     const int currentAxisValue
@@ -430,7 +527,18 @@ float Widget::getCurrentAxisValue(
     } else {
         return dataBounds.x();
     }
+}
 
+int Widget::getCurrentAxisValue(
+    const QPoint &axisBounds,
+    const QPointF &dataBounds,
+    const float currentDataValue
+) const
+{
+    return (currentDataValue - dataBounds.x()) /
+        (dataBounds.y() - dataBounds.x()) *
+        (axisBounds.y() - axisBounds.x()) +
+        axisBounds.x();
 }
 
 QRect Widget::getRectForAxisLabel(
@@ -513,7 +621,7 @@ void Widget::drawAxisLabels(
     QRect biggerRect = getOuterRectForAxisLabel(labelRect);
     painter->fillRect(biggerRect, mBackgroundBrush);
     painter->drawRect(biggerRect);
-    float valueX = getCurrentAxisValue(
+    float valueX = getCurrentDataValue(
         axisXBounds,
         mDataXBounds,
         pos.x()
@@ -532,10 +640,12 @@ void Widget::drawAxisLabels(
     biggerRect = getOuterRectForAxisLabel(labelRect);
     painter->fillRect(biggerRect, mBackgroundBrush);
     painter->drawRect(biggerRect);
-    float valueY = getCurrentAxisValue(
+    // так как ось Y расположена сверху вниз, а рисуем мы ее снизу вверх
+    // значения надо отображать "зеркально"
+    float valueY = getCurrentDataValue(
         axisYBounds,
         mDataYBounds,
-        pos.y()
+        axisYBounds.y() - (pos.y() - axisYBounds.x())
     );
     painter->drawText(
         labelRect,
