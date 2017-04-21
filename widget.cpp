@@ -12,7 +12,7 @@ Widget::Widget(QWidget *parent, const QString &fileName)
 {
     optShowLabelsWithMouse = true;
     optSelectAreaWithMouse = true;
-    optSeparateCandlesAndVolumesGraphs = true;
+    optSeparateCandlesAndVolumesGraphs = false;
 
     setMinimumSize(640, 480);
 
