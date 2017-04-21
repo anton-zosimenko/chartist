@@ -7,6 +7,10 @@
 #include <QBrush>
 #include <QPen>
 #include <QString>
+#include <QPoint>
+#include <QRect>
+#include <QPointF>
+#include <QRectF>
 
 class Widget : public QWidget
 {
@@ -57,6 +61,7 @@ private:
 
     QPointF mDataXBounds;
     QPointF mDataYBounds;
+    QPointF mVolumeBounds;
     QPoint mMousePos;
     QPoint mMousePressPos;
     QPoint mMouseReleasePos;
@@ -70,11 +75,12 @@ private:
     QPen mMouseAxisPen;
     QPen mMouseLabelPen;
     QPen mMouseSelectAreaPen;
-    QBrush mMouseSelectAreaBrush;
+    int mMouseSelectAreaBrushAlpha;
     QPen mMouseSelectAreaLabelsPen;
     QPen mCandlePen;
     QBrush mCandleUpBrush;
     QBrush mCandleDownBrush;
+    int mCandleBrushAlpha;
 
     int mAxisXLeftBorderLength;
     int mAxisXRightBorderLength;
@@ -92,12 +98,15 @@ private:
     int mAxisLabelXAdditionalLength;
     int mAxisLabelYAdditionalLength;
     int mCandleWidth;
+    int mBetweenCandlesWidth;
     int mCandleCount;
     int mCandleMinWidth;
     int mCandleMaxWidth;
+    int mAxisYVolumeHeight;
 
     bool optShowLabelsWithMouse;
     bool optSelectAreaWithMouse;
+    bool optSeparateCandlesAndVolumesGraphs;
 
     DataSeries mDataSeries;
 };

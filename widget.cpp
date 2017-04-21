@@ -12,6 +12,7 @@ Widget::Widget(QWidget *parent, const QString &fileName)
 {
     optShowLabelsWithMouse = true;
     optSelectAreaWithMouse = true;
+    optSeparateCandlesAndVolumesGraphs = true;
 
     setMinimumSize(640, 480);
 
@@ -34,13 +35,12 @@ Widget::Widget(QWidget *parent, const QString &fileName)
     mMouseLabelPen = QPen(Qt::blue, 1);
     mMouseSelectAreaPen = QPen(Qt::gray, 1);
     mMouseSelectAreaPen.setStyle(Qt::DashLine);
-    QColor mouseSelectAreaBrushColor = QColor(Qt::gray);
-    mouseSelectAreaBrushColor.setAlpha(80);
-    mMouseSelectAreaBrush = QBrush(mouseSelectAreaBrushColor, Qt::SolidPattern);
     mMouseSelectAreaLabelsPen = QPen(mMouseSelectAreaPen.color(), 1);
+    mMouseSelectAreaBrushAlpha = 80;
     mCandlePen = QPen(Qt::black, 1);
     mCandleUpBrush = QBrush(Qt::green);
     mCandleDownBrush = QBrush(Qt::red);
+    mCandleBrushAlpha = 80;
 
     mAxisXLeftBorderLength = 0;
     mAxisXRightBorderLength = 52;
@@ -57,10 +57,12 @@ Widget::Widget(QWidget *parent, const QString &fileName)
     mMaxAxisLabelLength = 6;
     mAxisLabelXAdditionalLength = 1;
     mAxisLabelYAdditionalLength = 1;
-    mCandleWidth = 3;
+    mCandleWidth = 15;
+    mBetweenCandlesWidth = 2;
     mCandleCount = 0;
     mCandleMinWidth = 3;
     mCandleMaxWidth = 101;
+    mAxisYVolumeHeight = 100;
 
     mDataSeries = DataSeries();
     // читаем данные из файла
@@ -195,6 +197,7 @@ void Widget::paint(QPainter *painter, QPaintEvent *event)
     int axisMinY = minY + mAxisYTopBorderLength;
     int axisMaxX = maxX - mAxisXRightBorderLength;
     int axisMaxY = maxY - mAxisYBottomBorderLength;
+    int candleWidth = mCandleWidth + mBetweenCandlesWidth;
 
     // пересчитаем диапазоны значений на осях
     // ((при ресайзе окна или изменении ширины свечи) и наличии данных)
@@ -205,11 +208,11 @@ void Widget::paint(QPainter *painter, QPaintEvent *event)
             mIsCandleWidthChanged = false;
         }
         // место крайней правой свечи не занимаем
-        mCandleCount = (axisMaxX - axisMinX - mCandleWidth) / mCandleWidth;
+        mCandleCount = (axisMaxX - axisMinX - candleWidth) / candleWidth;
         if (mCandleCount > (int)mDataSeries.size()) {
             mCandleCount = mDataSeries.size();
         }
-        float ymin = INFINITY, ymax = 0;
+        float ymin = INFINITY, ymax = 0, volmax = 0;
         for (int i = 0; i < mCandleCount; ++i) {
             Candle currCandle = mDataSeries.data()[mDataSeries.size() - 1 - i];
             if (currCandle.low < ymin) {
@@ -218,9 +221,13 @@ void Widget::paint(QPainter *painter, QPaintEvent *event)
             if (currCandle.high > ymax) {
                 ymax = currCandle.high;
             }
+            if (currCandle.volume > volmax) {
+                volmax = currCandle.volume;
+            }
         }
         mDataYBounds = QPointF(ymin, ymax);
         mDataXBounds = QPointF(-mCandleCount, 0);
+        mVolumeBounds = QPoint(0, volmax);
     }
 
     // нарисуем оси
@@ -271,27 +278,59 @@ void Widget::paint(QPainter *painter, QPaintEvent *event)
     }
 
     // нарисуем график
+    if (optSeparateCandlesAndVolumesGraphs) {
+        // если задана опция разделять графики свечей и объема, то при рисовании
+        // смещаем максимальную координату по оси Y на высоту области вывода
+        // обьемов графиков, чтоб они не наезжали друг на друга
+        axisMaxY -= mAxisYVolumeHeight;
+    }
     for (int i = 0; i < mCandleCount; ++i) {
         Candle currCandle = mDataSeries.data()[mDataSeries.size() - 1 - i];
         // место крайней правой свечи не занимаем
-        int xmax = axisMaxX - (i + 1) * mCandleWidth;
+        int xmax = axisMaxX - (i + 1) * candleWidth;
         int xmin = xmax - mCandleWidth;
-        int ymax = getCurrentAxisValue(QPoint(axisMinY, axisMaxY), mDataYBounds, currCandle.high);
-        int ymin = getCurrentAxisValue(QPoint(axisMinY, axisMaxY), mDataYBounds, currCandle.low);
-        int yopn = getCurrentAxisValue(QPoint(axisMinY, axisMaxY), mDataYBounds, currCandle.open);
-        int ycls = getCurrentAxisValue(QPoint(axisMinY, axisMaxY), mDataYBounds, currCandle.close);
         painter->setPen(mCandlePen);
         // так как ось Y расположена сверху вниз, а рисуем мы ее снизу вверх
         // значения надо отображать "зеркально"
-        int xavg = (xmin + xmax) / 2;
-        // тень свечи
-        painter->drawLine(
-            QPoint(xavg, axisMaxY - (ymin - axisMinY)),
-            QPoint(xavg, axisMaxY - (ymax - axisMinY))
+        float xavg = (xmin + xmax) / 2;
+        // объем свечи
+        // если включено разделение графиков, нужно помнить,
+        // что axisMaxY скорректирована, используем "реальный" axisMaxY
+        int axisMaxYReal = axisMaxY +
+            (optSeparateCandlesAndVolumesGraphs ? mAxisYVolumeHeight : 0);
+        int yvol = getCurrentAxisValue(
+            QPoint(axisMaxYReal - mAxisYVolumeHeight, axisMaxYReal),
+            mVolumeBounds,
+            currCandle.volume
         );
-        QRect candleRect = QRect(
-            QPoint(xmin, axisMaxY - (yopn - axisMinY)),
-            QPoint(xmax, axisMaxY - (ycls - axisMinY))
+        QRectF volumeRect = QRectF(
+            QPointF(xmin, yvol),
+            QPointF(xmax, axisMaxYReal)
+        );
+        QColor volumeColor = (
+            currCandle.close > currCandle.open ?
+                mCandleUpBrush :
+                mCandleDownBrush
+            ).color();
+        volumeColor.setAlpha(mCandleBrushAlpha);
+        QBrush volumeBrush = QBrush(volumeColor, Qt::SolidPattern);
+        painter->fillRect(
+            volumeRect,
+            volumeBrush
+        );
+        // тень свечи
+        QPoint yScale = QPoint(axisMinY, axisMaxY);
+        int ymax = getCurrentAxisValue(yScale, mDataYBounds, currCandle.high);
+        int ymin = getCurrentAxisValue(yScale, mDataYBounds, currCandle.low);
+        int yopn = getCurrentAxisValue(yScale, mDataYBounds, currCandle.open);
+        int ycls = getCurrentAxisValue(yScale, mDataYBounds, currCandle.close);
+        painter->drawLine(
+            QPointF(xavg, axisMaxY - (ymin - axisMinY)),
+            QPointF(xavg, axisMaxY - (ymax - axisMinY))
+        );
+        QRectF candleRect = QRectF(
+            QPointF(xmin, axisMaxY - (yopn - axisMinY)),
+            QPointF(xmax, axisMaxY - (ycls - axisMinY))
         );
         // цветоное тело свечи
         painter->fillRect(
@@ -300,6 +339,10 @@ void Widget::paint(QPainter *painter, QPaintEvent *event)
         );
         // контур свечи
         painter->drawRect(candleRect);
+    }
+    if (optSeparateCandlesAndVolumesGraphs) {
+        // восстановим максимальную координату по оси Y, если нужно
+        axisMaxY += mAxisYVolumeHeight;
     }
 
     // нарисуем выделение области на графике
@@ -439,9 +482,15 @@ void Widget::paint(QPainter *painter, QPaintEvent *event)
                         makeAxisLabel(qAbs(yVal2 - yVal1))
                 );
                 // зальем область между метками
+                QColor mouseSelectAreaBrushColor = mMouseSelectAreaPen.color();
+                mouseSelectAreaBrushColor.setAlpha(mMouseSelectAreaBrushAlpha);
+                QBrush mouseSelectAreaBrush = QBrush(
+                    mouseSelectAreaBrushColor,
+                    Qt::SolidPattern
+                );
                 painter->fillRect(
                     QRect(QPoint(mx1, my1), QPoint(mx2, my2)),
-                    mMouseSelectAreaBrush
+                    mouseSelectAreaBrush
                 );
             }
         }
