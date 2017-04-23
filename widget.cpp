@@ -13,6 +13,7 @@ Widget::Widget(QWidget *parent, const QString &fileName)
     optShowLabelsWithMouse = true;
     optSelectAreaWithMouse = true;
     optShowVolumeGraph = true;
+    optShowScrollArea = true;
 
     setMinimumSize(640, 480);
 
@@ -64,10 +65,12 @@ Widget::Widget(QWidget *parent, const QString &fileName)
     mAxisLabelYAdditionalLength = 1;
     mCandleWidth = 15;
     mBetweenCandlesWidth = 2;
-    mCandleCount = 0;
+    mViewedCandleCount = 0;
+    mCandleOffsetFromEnd = 0;
     mCandleMinWidth = 3;
-    mCandleMaxWidth = 101;
+    mCandleMaxWidth = 50;
     mAxisYVolumeHeight = 100;
+    mAxisYScrollBarHeight = 30;
 
     mDataSeries = DataSeries();
     // читаем данные из файла
@@ -95,6 +98,30 @@ void Widget::setSelectAreaWithMouse(bool newValue)
 {
     if (optSelectAreaWithMouse != newValue) {
         optSelectAreaWithMouse = newValue;
+    }
+}
+
+bool Widget::showVolumeGraph() const
+{
+    return optShowVolumeGraph;
+}
+
+void Widget::setShowVolumeGraph(bool newValue)
+{
+    if (optShowVolumeGraph != newValue) {
+        optShowVolumeGraph = newValue;
+    }
+}
+
+bool Widget::showScrollArea() const
+{
+    return optShowScrollArea;
+}
+
+void Widget::setShowScrollArea(bool newValue)
+{
+    if (optShowScrollArea != newValue) {
+        optShowScrollArea = newValue;
     }
 }
 
@@ -218,12 +245,12 @@ void Widget::paint(QPainter *painter, QPaintEvent *event)
             mIsCandleWidthChanged = false;
         }
         // место крайней правой свечи не занимаем
-        mCandleCount = (axisMaxX - axisMinX - candleWidth) / candleWidth;
-        if (mCandleCount > (int)mDataSeries.size()) {
-            mCandleCount = mDataSeries.size();
+        mViewedCandleCount = (axisMaxX - axisMinX - candleWidth) / candleWidth;
+        if (mViewedCandleCount > (int)mDataSeries.size()) {
+            mViewedCandleCount = mDataSeries.size();
         }
         float ymin = INFINITY, ymax = 0, volmax = 0;
-        for (int i = 0; i < mCandleCount; ++i) {
+        for (int i = 0; i < mViewedCandleCount; ++i) {
             Candle currCandle = mDataSeries.data()[mDataSeries.size() - 1 - i];
             if (currCandle.low < ymin) {
                 ymin = currCandle.low;
@@ -238,10 +265,18 @@ void Widget::paint(QPainter *painter, QPaintEvent *event)
             }
         }
         mDataYBounds = QPointF(ymin, ymax);
-        mDataXBounds = QPointF(-mCandleCount, 0);
+        mDataXBounds = QPointF(-mViewedCandleCount, 0);
         if (optShowVolumeGraph) {
             mVolumeBounds = QPointF(0, volmax);
         }
+    }
+
+    // если отображается область скролла и кол-во видимых свечей меньше общего
+    // кол-ва свечей, то сократим область графика по высоте
+    if (optShowScrollArea && mViewedCandleCount < (int)mDataSeries.size()) {
+        // если отображается область скролла,
+        // то сократим область графика по высоте
+        axisMaxY -= mAxisYScrollBarHeight;
     }
 
     // нарисуем оси
@@ -324,7 +359,7 @@ void Widget::paint(QPainter *painter, QPaintEvent *event)
     }
 
     // нарисуем график, если задана опция
-    for (int i = 0; i < mCandleCount; ++i) {
+    for (int i = 0; i < mViewedCandleCount; ++i) {
         Candle currCandle = mDataSeries.data()[mDataSeries.size() - 1 - i];
         // место крайней правой свечи не занимаем
         int xmax = axisMaxX - (i + 1) * candleWidth;
@@ -338,7 +373,7 @@ void Widget::paint(QPainter *painter, QPaintEvent *event)
             // если включено график объемов, нужно помнить,
             // что axisMaxY скорректирована, используем "реальный" axisMaxY
             int axisMaxYReal = axisMaxY + mAxisYVolumeHeight;
-            int yvol = getCurrentAxisValue(
+            float yvol = getCurrentAxisValue(
                 QPoint(0, mAxisYVolumeHeight),
                 mVolumeBounds,
                 currCandle.volume
@@ -361,17 +396,17 @@ void Widget::paint(QPainter *painter, QPaintEvent *event)
         }
         // тень свечи
         QPoint yScale = QPoint(axisMinY, axisMaxY);
-        int ymax = getCurrentAxisValue(yScale, mDataYBounds, currCandle.high);
-        int ymin = getCurrentAxisValue(yScale, mDataYBounds, currCandle.low);
-        int yopn = getCurrentAxisValue(yScale, mDataYBounds, currCandle.open);
-        int ycls = getCurrentAxisValue(yScale, mDataYBounds, currCandle.close);
+        float ymax = getCurrentAxisValue(yScale, mDataYBounds, currCandle.high);
+        float ymin = getCurrentAxisValue(yScale, mDataYBounds, currCandle.low);
+        float yopn = getCurrentAxisValue(yScale, mDataYBounds, currCandle.open);
+        float ycls = getCurrentAxisValue(yScale, mDataYBounds, currCandle.close);
         painter->drawLine(
-            QPointF(xavg, axisMaxY - (ymin - axisMinY)),
-            QPointF(xavg, axisMaxY - (ymax - axisMinY))
+            QPointF(xavg, yScale.y() - (ymin - yScale.x())),
+            QPointF(xavg, yScale.y() - (ymax - yScale.x()))
         );
         QRectF candleRect = QRectF(
-            QPointF(xmin, axisMaxY - (yopn - axisMinY)),
-            QPointF(xmax, axisMaxY - (ycls - axisMinY))
+            QPointF(xmin, yScale.y() - (yopn - yScale.x())),
+            QPointF(xmax, yScale.y() - (ycls - yScale.x()))
         );
         // цветоное тело свечи
         painter->fillRect(
@@ -593,6 +628,70 @@ void Widget::paint(QPainter *painter, QPaintEvent *event)
             setCursor(Qt::ArrowCursor);
         }
     }
+
+    // нарисуем скроллбар, если нужно
+    if (optShowScrollArea && mViewedCandleCount < (int)mDataSeries.size()) {
+        float scaledCandleWidth = 1.0 * (axisMaxX - axisMinX) / mDataSeries.size();
+        int mergedCounter = 1;
+        if (scaledCandleWidth < 1) {
+            mergedCounter = ceil(1 / scaledCandleWidth);
+            scaledCandleWidth *= mergedCounter;
+        }
+        // рисуем с конца графика
+        float startX = axisMaxX;
+        int startIndex = mDataSeries.size() - 1;
+        int windowsCount = ceil(1.0 * mDataSeries.size() / mergedCounter);
+        QPointF dataBounds = QPointF(
+            mDataSeries.globalLow(),
+            mDataSeries.globalHigh()
+        );
+        for (int i = 0; i < windowsCount; ++i) {
+            // мержим свечи, для того чтоб получить упрощенную свечу окна
+            float high = 0, low = INFINITY;
+            float open = mDataSeries.data()[startIndex].open;
+            for (int j = 0; j < mergedCounter; ++j) {
+                if (mDataSeries.data()[startIndex].high > high) {
+                    high = mDataSeries.data()[startIndex].high;
+                }
+                if (mDataSeries.data()[startIndex].low < low) {
+                    low = mDataSeries.data()[startIndex].low;
+                }
+                startIndex--;
+                // количевство свечей в окнах округлено, поэтому последнее окно
+                // может быть неполным, проверяем чтоб не выйти за границы
+                if (startIndex < 0) {
+                    break;
+                }
+            }
+            float close = mDataSeries.data()[startIndex].close;
+            // определим цвет свечи по разнице открытия и закрытия
+            QColor color = (close > open ? mCandleUpBrush : mCandleDownBrush).color();
+            // скроллбар расположен в самом низу виджета, поэтому область для
+            // рисования определяем от самого низа
+            QPoint yScale = QPoint(
+                maxY - mAxisYScrollBarHeight,
+                maxY
+            );
+            float ymax = getCurrentAxisValue(yScale, dataBounds, high);
+            float ymin = getCurrentAxisValue(yScale, dataBounds, low);
+            QRectF candleRect = QRectF(
+                QPointF(startX, yScale.y() - (ymax - yScale.x())),
+                QPointF(startX - scaledCandleWidth, yScale.y() - (ymin - yScale.x()))
+            );
+            // цветоное тело свечи
+            painter->fillRect(
+                candleRect,
+                QBrush(color)
+            );
+            // контур свечи
+            painter->setPen(QPen(color));
+            painter->drawRect(candleRect);
+            // скорректируем текущую координату для рисования
+            startX -= scaledCandleWidth;
+        }
+        // нарисуем текущее отображаемое окно на скроллбаре
+        float areaWidth = 1.0 * mViewedCandleCount / mDataSeries.size() * (axisMaxX - axisMinX);
+    }
 }
 
 QString Widget::makeAxisLabel(const float value) const
@@ -632,13 +731,13 @@ float Widget::getCurrentDataValue(
     }
 }
 
-int Widget::getCurrentAxisValue(
+float Widget::getCurrentAxisValue(
     const QPoint &axisBounds,
     const QPointF &dataBounds,
     const float currentDataValue
 ) const
 {
-    return (currentDataValue - dataBounds.x()) /
+    return 1.0 * (currentDataValue - dataBounds.x()) /
         (dataBounds.y() - dataBounds.x()) *
         (axisBounds.y() - axisBounds.x()) +
         axisBounds.x();

@@ -21,6 +21,10 @@ public:
     void setShowLabelsWithMouse(bool newValue);
     bool selectAreaWithMouse() const;
     void setSelectAreaWithMouse(bool newValue);
+    bool showVolumeGraph() const;
+    void setShowVolumeGraph(bool newValue);
+    bool showScrollArea() const;
+    void setShowScrollArea(bool newValue);
 protected:
     void paintEvent(QPaintEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
@@ -38,7 +42,7 @@ private:
         const QPointF &dataBounds,
         const int currentAxisValue
     ) const;
-    int getCurrentAxisValue(
+    float getCurrentAxisValue(
         const QPoint &axisBounds,
         const QPointF &dataBounds,
         const float currentDataValue
@@ -112,14 +116,17 @@ private:
     int mAxisLabelYAdditionalLength;
     int mCandleWidth;
     int mBetweenCandlesWidth;
-    int mCandleCount;
+    int mViewedCandleCount;
     int mCandleMinWidth;
     int mCandleMaxWidth;
     int mAxisYVolumeHeight;
+    int mAxisYScrollBarHeight;
+    int mCandleOffsetFromEnd;
 
     bool optShowLabelsWithMouse;
     bool optSelectAreaWithMouse;
     bool optShowVolumeGraph;
+    bool optShowScrollArea;
 
     DataSeries mDataSeries;
 };
