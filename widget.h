@@ -21,6 +21,10 @@ public:
     void setShowLabelsWithMouse(bool newValue);
     bool selectAreaWithMouse() const;
     void setSelectAreaWithMouse(bool newValue);
+    bool showVolumeGraph() const;
+    void setShowVolumeGraph(bool newValue);
+    bool showScrollArea() const;
+    void setShowScrollArea(bool newValue);
 protected:
     void paintEvent(QPaintEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
@@ -38,7 +42,7 @@ private:
         const QPointF &dataBounds,
         const int currentAxisValue
     ) const;
-    int getCurrentAxisValue(
+    float getCurrentAxisValue(
         const QPoint &axisBounds,
         const QPointF &dataBounds,
         const float currentDataValue
@@ -56,7 +60,17 @@ private:
         QPainter *painter,
         const QPoint &pos,
         const QPoint &axisXBounds,
-        const QPoint &axisYBounds
+        const QPoint &axisYBounds, const QPointF dataYBounds,
+        int offset
+    ) const;
+    void drawAxisLines(
+        QPainter *painter,
+        const QPen &axisLabelsPen,
+        const QPoint &pos,
+        const QPoint &axisXBounds,
+        const QPoint &axisYBounds,
+        int offset,
+        bool isDrawDashs=true
     ) const;
 
     QPointF mDataXBounds;
@@ -73,7 +87,9 @@ private:
     QBrush mBackgroundBrush;
     QPen mAxisPen;
     QPen mMouseAxisPen;
+    QPen mMouseAxisVolumePen;
     QPen mMouseLabelPen;
+    QPen mMouseVolumeLabelPen;
     QPen mMouseSelectAreaPen;
     int mMouseSelectAreaBrushAlpha;
     QPen mMouseSelectAreaLabelsPen;
@@ -88,6 +104,7 @@ private:
     int mAxisYBottomBorderLength;
     int mAxisXDashCount;
     int mAxisYDashCount;
+    int mAxisYVolumeDashCount;
     int mAxisXDashLen;
     int mAxisYDashLen;
     int mAxisXDashSpace;
@@ -99,14 +116,17 @@ private:
     int mAxisLabelYAdditionalLength;
     int mCandleWidth;
     int mBetweenCandlesWidth;
-    int mCandleCount;
+    int mViewedCandleCount;
     int mCandleMinWidth;
     int mCandleMaxWidth;
     int mAxisYVolumeHeight;
+    int mAxisYScrollBarHeight;
+    int mCandleOffsetFromEnd;
 
     bool optShowLabelsWithMouse;
     bool optSelectAreaWithMouse;
-    bool optSeparateCandlesAndVolumesGraphs;
+    bool optShowVolumeGraph;
+    bool optShowScrollArea;
 
     DataSeries mDataSeries;
 };

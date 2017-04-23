@@ -20,12 +20,14 @@ public:
     ~DataSeries();
     void append(const Candle *data, uint64_t size);
     uint64_t size() const;
-    std::wstring name() const;
     const Candle *data() const;
+    float globalHigh() const;
+    float globalLow() const;
 private:
     uint64_t mSize;
-    std::wstring mName;
     Candle *mData;
+    float mGlobalHigh;
+    float mGlobalLow;
 };
 
 #endif // CORE_H

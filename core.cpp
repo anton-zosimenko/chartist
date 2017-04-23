@@ -2,12 +2,14 @@
 
 #include <cstdlib>
 #include <stdexcept>
+#include <math.h>
 
 DataSeries::DataSeries()
 {
     mSize = 0;
-    mName = L"";
     mData = nullptr;
+    mGlobalHigh = 0;
+    mGlobalLow = INFINITY;
 }
 
 DataSeries::~DataSeries()
@@ -19,11 +21,6 @@ DataSeries::~DataSeries()
 uint64_t DataSeries::size() const
 {
     return mSize;
-}
-
-std::wstring DataSeries::name() const
-{
-    return mName;
 }
 
 const Candle * DataSeries::data() const
@@ -43,6 +40,22 @@ void DataSeries::append(const Candle *data, uint64_t size)
     }
     for (uint64_t i = 0; i < size; ++i) {
         mData[mSize + i] = data[i];
+        if (data[i].high > mGlobalHigh) {
+            mGlobalHigh = data[i].high;
+        }
+        if (data[i].low < mGlobalLow) {
+            mGlobalLow = data[i].low;
+        }
     }
     mSize += size;
+}
+
+float DataSeries::globalHigh() const
+{
+    return mGlobalHigh;
+}
+
+float DataSeries::globalLow() const
+{
+    return mGlobalLow;
 }
