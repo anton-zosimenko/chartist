@@ -56,7 +56,8 @@ private:
         QPainter *painter,
         const QPoint &pos,
         const QPoint &axisXBounds,
-        const QPoint &axisYBounds
+        const QPoint &axisYBounds,
+        int offset
     ) const;
 
     QPointF mDataXBounds;
@@ -106,7 +107,7 @@ private:
 
     bool optShowLabelsWithMouse;
     bool optSelectAreaWithMouse;
-    bool optSeparateCandlesAndVolumesGraphs;
+    bool optShowVolumeGraph;
 
     DataSeries mDataSeries;
 };

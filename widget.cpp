@@ -12,12 +12,13 @@ Widget::Widget(QWidget *parent, const QString &fileName)
 {
     optShowLabelsWithMouse = true;
     optSelectAreaWithMouse = true;
-    optSeparateCandlesAndVolumesGraphs = false;
+    optShowVolumeGraph = true;
 
     setMinimumSize(640, 480);
 
     mDataXBounds = QPointF(-1000, 1000);
     mDataYBounds = QPointF(0, 1);
+    mVolumeBounds = QPointF(0, 1);
 
     mMousePos = QPoint(-1, -1);
     setMouseTracking(true);
@@ -197,6 +198,11 @@ void Widget::paint(QPainter *painter, QPaintEvent *event)
     int axisMinY = minY + mAxisYTopBorderLength;
     int axisMaxX = maxX - mAxisXRightBorderLength;
     int axisMaxY = maxY - mAxisYBottomBorderLength;
+    if (optShowVolumeGraph) {
+        // если включено отображение графика объема, то
+        // сократим область графика по высоте
+        axisMaxY -= mAxisYVolumeHeight;
+    }
     int candleWidth = mCandleWidth + mBetweenCandlesWidth;
 
     // пересчитаем диапазоны значений на осях
@@ -221,35 +227,48 @@ void Widget::paint(QPainter *painter, QPaintEvent *event)
             if (currCandle.high > ymax) {
                 ymax = currCandle.high;
             }
-            if (currCandle.volume > volmax) {
-                volmax = currCandle.volume;
+            if (optShowVolumeGraph) {
+                if (currCandle.volume > volmax) {
+                    volmax = currCandle.volume;
+                }
             }
         }
         mDataYBounds = QPointF(ymin, ymax);
         mDataXBounds = QPointF(-mCandleCount, 0);
-        mVolumeBounds = QPoint(0, volmax);
+        if (optShowVolumeGraph) {
+            mVolumeBounds = QPointF(0, volmax);
+        }
     }
 
     // нарисуем оси
     painter->setPen(mAxisPen);
-    painter->drawLine(QPoint(axisMinX, axisMaxY), QPoint(axisMaxX, axisMaxY));
-    painter->drawLine(QPoint(axisMaxX, axisMinY), QPoint(axisMaxX, axisMaxY));
+    // ось Х рисуем под графиком объема, если он задан
+    int offset = optShowVolumeGraph ? mAxisYVolumeHeight : 0;
+    painter->drawLine(
+        QPoint(axisMinX, axisMaxY + offset),
+        QPoint(axisMaxX, axisMaxY + offset)
+    );
+    painter->drawLine(
+        QPoint(axisMaxX, axisMinY),
+        QPoint(axisMaxX, axisMaxY + offset)
+    );
 
     // нарисуем риски и данные на осях координат
+    // (не забываем про смещение оси вниз, если рисуется объем)
     float deltaX = 1.0 * (axisMaxX - axisMinX) / mAxisXDashCount;
     float dataDeltaX = (mDataXBounds.y() - mDataXBounds.x()) / mAxisXDashCount;
     for (int i = 1; i < mAxisXDashCount; ++i) {
         float x = axisMinX + i*deltaX;
-        painter->drawLine(QPointF(x, axisMaxY), QPointF(x, axisMaxY + mAxisXDashLen));
+        painter->drawLine(QPointF(x, axisMaxY + offset), QPointF(x, axisMaxY + offset + mAxisXDashLen));
         painter->drawText(
             QRect(
                 QPoint(
                     x - mAxisLabelHalfWidth,
-                    axisMaxY + mAxisXDashLen + mAxisXDashSpace
+                    axisMaxY + offset + mAxisXDashLen + mAxisXDashSpace
                 ),
                 QPoint(
                     x + mAxisLabelHalfWidth,
-                    axisMaxY + mAxisXDashLen + 2*mAxisLabelHalfHeight + mAxisXDashSpace
+                    axisMaxY + offset + mAxisXDashLen + 2*mAxisLabelHalfHeight + mAxisXDashSpace
                 )
             ),
             Qt::AlignCenter,
@@ -277,13 +296,7 @@ void Widget::paint(QPainter *painter, QPaintEvent *event)
         );
     }
 
-    // нарисуем график
-    if (optSeparateCandlesAndVolumesGraphs) {
-        // если задана опция разделять графики свечей и объема, то при рисовании
-        // смещаем максимальную координату по оси Y на высоту области вывода
-        // обьемов графиков, чтоб они не наезжали друг на друга
-        axisMaxY -= mAxisYVolumeHeight;
-    }
+    // нарисуем график, если задана опция
     for (int i = 0; i < mCandleCount; ++i) {
         Candle currCandle = mDataSeries.data()[mDataSeries.size() - 1 - i];
         // место крайней правой свечи не занимаем
@@ -294,30 +307,31 @@ void Widget::paint(QPainter *painter, QPaintEvent *event)
         // значения надо отображать "зеркально"
         float xavg = (xmin + xmax) / 2;
         // объем свечи
-        // если включено разделение графиков, нужно помнить,
-        // что axisMaxY скорректирована, используем "реальный" axisMaxY
-        int axisMaxYReal = axisMaxY +
-            (optSeparateCandlesAndVolumesGraphs ? mAxisYVolumeHeight : 0);
-        int yvol = getCurrentAxisValue(
-            QPoint(axisMaxYReal - mAxisYVolumeHeight, axisMaxYReal),
-            mVolumeBounds,
-            currCandle.volume
-        );
-        QRectF volumeRect = QRectF(
-            QPointF(xmin, yvol),
-            QPointF(xmax, axisMaxYReal)
-        );
-        QColor volumeColor = (
-            currCandle.close > currCandle.open ?
-                mCandleUpBrush :
-                mCandleDownBrush
-            ).color();
-        volumeColor.setAlpha(mCandleBrushAlpha);
-        QBrush volumeBrush = QBrush(volumeColor, Qt::SolidPattern);
-        painter->fillRect(
-            volumeRect,
-            volumeBrush
-        );
+        if (optShowVolumeGraph) {
+            // если включено график объемов, нужно помнить,
+            // что axisMaxY скорректирована, используем "реальный" axisMaxY
+            int axisMaxYReal = axisMaxY + mAxisYVolumeHeight;
+            int yvol = getCurrentAxisValue(
+                QPoint(0, mAxisYVolumeHeight),
+                mVolumeBounds,
+                currCandle.volume
+            );
+            QRectF volumeRect = QRectF(
+                QPointF(xmin, axisMaxYReal - yvol),
+                QPointF(xmax, axisMaxYReal)
+            );
+            QColor volumeColor = (
+                currCandle.close > currCandle.open ?
+                    mCandleUpBrush :
+                    mCandleDownBrush
+                ).color();
+            volumeColor.setAlpha(mCandleBrushAlpha);
+            QBrush volumeBrush = QBrush(volumeColor, Qt::SolidPattern);
+            painter->fillRect(
+                volumeRect,
+                volumeBrush
+            );
+        }
         // тень свечи
         QPoint yScale = QPoint(axisMinY, axisMaxY);
         int ymax = getCurrentAxisValue(yScale, mDataYBounds, currCandle.high);
@@ -340,10 +354,6 @@ void Widget::paint(QPainter *painter, QPaintEvent *event)
         // контур свечи
         painter->drawRect(candleRect);
     }
-    if (optSeparateCandlesAndVolumesGraphs) {
-        // восстановим максимальную координату по оси Y, если нужно
-        axisMaxY += mAxisYVolumeHeight;
-    }
 
     // нарисуем выделение области на графике
     if (optSelectAreaWithMouse) {
@@ -365,7 +375,7 @@ void Widget::paint(QPainter *painter, QPaintEvent *event)
             }
             // оси
             painter->setPen(mMouseSelectAreaPen);
-            painter->drawLine(QPoint(mx1, axisMinY), QPoint(mx1, axisMaxY));
+            painter->drawLine(QPoint(mx1, axisMinY), QPoint(mx1, axisMaxY + offset));
             painter->drawLine(QPoint(axisMinX, my1), QPoint(axisMaxX, my1));
             // риски рисуем только если клик был внутри области графика
             painter->setPen(mMouseSelectAreaLabelsPen);
@@ -388,7 +398,8 @@ void Widget::paint(QPainter *painter, QPaintEvent *event)
                 painter,
                 QPoint(mx1, my1),
                 QPoint(axisMinX, axisMaxX),
-                QPoint(axisMinY, axisMaxY)
+                QPoint(axisMinY, axisMaxY),
+                offset
             );
             int mx2 = mIsMousePressed ? mMousePos.x() : mMouseReleasePos.x();
             int my2 = mIsMousePressed ? mMousePos.y() : mMouseReleasePos.y();
@@ -408,7 +419,7 @@ void Widget::paint(QPainter *painter, QPaintEvent *event)
                 }
                 // оси
                 painter->setPen(mMouseSelectAreaPen);
-                painter->drawLine(QPoint(mx2, axisMinY), QPoint(mx2, axisMaxY));
+                painter->drawLine(QPoint(mx2, axisMinY), QPoint(mx2, axisMaxY + offset));
                 painter->drawLine(QPoint(axisMinX, my2), QPoint(axisMaxX, my2));
                 // риски рисуем только если мышь внутри области графика
                 painter->setPen(mMouseSelectAreaLabelsPen);
@@ -431,7 +442,8 @@ void Widget::paint(QPainter *painter, QPaintEvent *event)
                     painter,
                     QPoint(mx2, my2),
                     QPoint(axisMinX, axisMaxX),
-                    QPoint(axisMinY, axisMaxY)
+                    QPoint(axisMinY, axisMaxY),
+                    offset
                 );
                 // вывести метки на графике
                 // область вывода правее и ниже пересечения осей
@@ -511,7 +523,7 @@ void Widget::paint(QPainter *painter, QPaintEvent *event)
                 // оси
                 painter->drawLine(
                     QPoint(mx, axisMinY),
-                    QPoint(mx, axisMaxY + mAxisXDashLen)
+                    QPoint(mx, axisMaxY + offset + mAxisXDashLen)
                 );
                 painter->drawLine(
                     QPoint(axisMinX, my),
@@ -520,8 +532,8 @@ void Widget::paint(QPainter *painter, QPaintEvent *event)
                 painter->setPen(mMouseLabelPen);
                 // риски
                 painter->drawLine(
-                    QPoint(mx, axisMaxY),
-                    QPoint(mx, axisMaxY + mAxisXDashLen)
+                    QPoint(mx, axisMaxY + offset),
+                    QPoint(mx, axisMaxY + offset + mAxisXDashLen)
                 );
                 painter->drawLine(
                     QPoint(axisMaxX, my),
@@ -533,7 +545,8 @@ void Widget::paint(QPainter *painter, QPaintEvent *event)
                 painter,
                 QPoint(mx, my),
                 QPoint(axisMinX, axisMaxX),
-                QPoint(axisMinY, axisMaxY)
+                QPoint(axisMinY, axisMaxY),
+                offset
             );
         } else {
             setCursor(Qt::ArrowCursor);
@@ -658,13 +671,15 @@ void Widget::drawAxisLabels(
     QPainter *painter,
     const QPoint &pos,
     const QPoint &axisXBounds,
-    const QPoint &axisYBounds
+    const QPoint &axisYBounds,
+    int offset
 ) const
 {
+    // нарисуем метку на оси Х
     QRect labelRect = getRectForAxisLabel(
         pos.x(),
         axisXBounds,
-        axisYBounds,
+        QPoint(axisYBounds.x(), axisYBounds.y() + offset),
         true
     );
     QRect biggerRect = getOuterRectForAxisLabel(labelRect);
@@ -680,6 +695,7 @@ void Widget::drawAxisLabels(
         Qt::AlignCenter,
         makeAxisLabel(valueX)
     );
+    // нарисуем метку на оси Y
     labelRect = getRectForAxisLabel(
         pos.y(),
         axisXBounds,
