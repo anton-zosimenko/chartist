@@ -33,8 +33,11 @@ Widget::Widget(QWidget *parent, const QString &fileName)
     mAxisPen = QPen(Qt::black, 1);
     mMouseAxisPen = QPen(Qt::blue, 1);
     mMouseAxisPen.setStyle(Qt::DashLine);
+    mMouseAxisVolumePen = QPen(Qt::red, 1);
+    mMouseAxisVolumePen.setStyle(Qt::DashLine);
     mMouseLabelPen = QPen(Qt::blue, 1);
-    mMouseSelectAreaPen = QPen(Qt::gray, 1);
+    mMouseVolumeLabelPen = QPen(Qt::red, 1);
+    mMouseSelectAreaPen = QPen(Qt::darkBlue, 1);
     mMouseSelectAreaPen.setStyle(Qt::DashLine);
     mMouseSelectAreaLabelsPen = QPen(mMouseSelectAreaPen.color(), 1);
     mMouseSelectAreaBrushAlpha = 80;
@@ -49,6 +52,7 @@ Widget::Widget(QWidget *parent, const QString &fileName)
     mAxisYBottomBorderLength = 20;
     mAxisXDashCount = 10;
     mAxisYDashCount = 10;
+    mAxisYVolumeDashCount = 4;
     mAxisXDashLen = 4;
     mAxisYDashLen = 4;
     mAxisXDashSpace = 2;
@@ -295,6 +299,29 @@ void Widget::paint(QPainter *painter, QPaintEvent *event)
             makeAxisLabel(mDataYBounds.x() + i*dataDeltaY)
         );
     }
+    // риски графика объема
+    if (optShowVolumeGraph) {
+        float deltaY = 1.0 * mAxisYVolumeHeight / mAxisYVolumeDashCount;
+        float dataDeltaY = (mVolumeBounds.y() - mVolumeBounds.x()) / mAxisYVolumeDashCount;
+        for (int i = 1; i < mAxisYVolumeDashCount; ++i) {
+            float y = axisMaxY + mAxisYVolumeHeight - i*deltaY;
+            painter->drawLine(QPointF(axisMaxX, y), QPointF(axisMaxX + mAxisYDashLen, y));
+            painter->drawText(
+                QRect(
+                    QPoint(
+                        axisMaxX + mAxisYDashLen + mAxisYDashSpace,
+                        y - mAxisLabelHalfHeight
+                    ),
+                    QPoint(
+                        axisMaxX + mAxisYDashLen + 2*mAxisLabelHalfWidth + mAxisYDashSpace,
+                        y + mAxisLabelHalfHeight
+                    )
+                ),
+                Qt::AlignLeft,
+                makeAxisLabel(mVolumeBounds.x() + i*dataDeltaY)
+            );
+        }
+    }
 
     // нарисуем график, если задана опция
     for (int i = 0; i < mCandleCount; ++i) {
@@ -373,32 +400,28 @@ void Widget::paint(QPainter *painter, QPaintEvent *event)
             if (my1 > axisMaxY - 1) {
                 my1 = axisMaxY - 1;
             }
-            // оси
-            painter->setPen(mMouseSelectAreaPen);
-            painter->drawLine(QPoint(mx1, axisMinY), QPoint(mx1, axisMaxY + offset));
-            painter->drawLine(QPoint(axisMinX, my1), QPoint(axisMaxX, my1));
+            // оси и риски
             // риски рисуем только если клик был внутри области графика
-            painter->setPen(mMouseSelectAreaLabelsPen);
-            if (mMousePressPos.x() >= axisMinX &&
+            bool isDrawDashs = mMousePressPos.x() >= axisMinX &&
                 mMousePressPos.x() < axisMaxX &&
                 mMousePressPos.y() >= axisMinY &&
-                mMousePressPos.y() < axisMaxY
-            ) {
-                painter->drawLine(
-                    QPoint(mx1, axisMaxY),
-                    QPoint(mx1, axisMaxY + mAxisXDashLen)
-                );
-                painter->drawLine(
-                    QPoint(axisMaxX, my1),
-                    QPoint(axisMaxX + mAxisYDashLen, my1)
-                );
-            }
+                mMousePressPos.y() < axisMaxY;
+            drawAxisLines(
+                painter,
+                mMouseSelectAreaLabelsPen,
+                QPoint(mx1, my1),
+                QPoint(axisMinX, axisMaxX),
+                QPoint(axisMinY, axisMaxY),
+                offset,
+                isDrawDashs
+            );
             // метки на осях координат
             drawAxisLabels(
                 painter,
                 QPoint(mx1, my1),
                 QPoint(axisMinX, axisMaxX),
                 QPoint(axisMinY, axisMaxY),
+                mDataYBounds,
                 offset
             );
             int mx2 = mIsMousePressed ? mMousePos.x() : mMouseReleasePos.x();
@@ -417,32 +440,28 @@ void Widget::paint(QPainter *painter, QPaintEvent *event)
                 if (my2 > axisMaxY - 1) {
                     my2 = axisMaxY - 1;
                 }
-                // оси
-                painter->setPen(mMouseSelectAreaPen);
-                painter->drawLine(QPoint(mx2, axisMinY), QPoint(mx2, axisMaxY + offset));
-                painter->drawLine(QPoint(axisMinX, my2), QPoint(axisMaxX, my2));
-                // риски рисуем только если мышь внутри области графика
-                painter->setPen(mMouseSelectAreaLabelsPen);
-                if ((mIsMousePressed ? mMousePos.x() : mMouseReleasePos.x()) >= axisMinX &&
+                // оси и риски
+                // риски рисуем только если клик был внутри области графика
+                isDrawDashs = (mIsMousePressed ? mMousePos.x() : mMouseReleasePos.x()) >= axisMinX &&
                     (mIsMousePressed ? mMousePos.x() : mMouseReleasePos.x()) < axisMaxX &&
                     (mIsMousePressed ? mMousePos.y() : mMouseReleasePos.y()) >= axisMinY &&
-                    (mIsMousePressed ? mMousePos.y() : mMouseReleasePos.y()) < axisMaxY
-                ) {
-                    painter->drawLine(
-                        QPoint(mx2, axisMaxY),
-                        QPoint(mx2, axisMaxY + mAxisXDashLen)
-                    );
-                    painter->drawLine(
-                        QPoint(axisMaxX, my2),
-                        QPoint(axisMaxX + mAxisYDashLen, my2)
-                    );
-                }
+                    (mIsMousePressed ? mMousePos.y() : mMouseReleasePos.y()) < axisMaxY;
+                drawAxisLines(
+                    painter,
+                    mMouseSelectAreaLabelsPen,
+                    QPoint(mx2, my2),
+                    QPoint(axisMinX, axisMaxX),
+                    QPoint(axisMinY, axisMaxY),
+                    offset,
+                    isDrawDashs
+                );
                 // метки на осях координат
                 drawAxisLabels(
                     painter,
                     QPoint(mx2, my2),
                     QPoint(axisMinX, axisMaxX),
                     QPoint(axisMinY, axisMaxY),
+                    mDataYBounds,
                     offset
                 );
                 // вывести метки на графике
@@ -512,32 +531,26 @@ void Widget::paint(QPainter *painter, QPaintEvent *event)
     if (optShowLabelsWithMouse) {
         int mx = mMousePos.x();
         int my = mMousePos.y();
-        if (mx >= axisMinX && mx < axisMaxX && my >= axisMinY && my < axisMaxY && mIsMouseEnter) {
+        if (mx >= axisMinX &&
+            mx < axisMaxX &&
+            my >= axisMinY &&
+            my < axisMaxY &&
+            mIsMouseEnter
+        ) {
             setCursor(Qt::CrossCursor);
             // если включено выделение области мышкой, и нажата кнопка мыши
             // не будем рисовать оси и риски, потому что они затрутся
             if (optSelectAreaWithMouse && mIsMousePressed) {
                 painter->setPen(mMouseSelectAreaLabelsPen);
             } else {
-                painter->setPen(mMouseAxisPen);
-                // оси
-                painter->drawLine(
-                    QPoint(mx, axisMinY),
-                    QPoint(mx, axisMaxY + offset + mAxisXDashLen)
-                );
-                painter->drawLine(
-                    QPoint(axisMinX, my),
-                    QPoint(axisMaxX + mAxisYDashLen, my)
-                );
-                painter->setPen(mMouseLabelPen);
-                // риски
-                painter->drawLine(
-                    QPoint(mx, axisMaxY + offset),
-                    QPoint(mx, axisMaxY + offset + mAxisXDashLen)
-                );
-                painter->drawLine(
-                    QPoint(axisMaxX, my),
-                    QPoint(axisMaxX + mAxisYDashLen, my)
+                // оси и риски
+                drawAxisLines(
+                    painter,
+                    mMouseLabelPen,
+                    QPoint(mx, my),
+                    QPoint(axisMinX, axisMaxX),
+                    QPoint(axisMinY, axisMaxY),
+                    offset
                 );
             }
             // метки на осях координат
@@ -546,7 +559,35 @@ void Widget::paint(QPainter *painter, QPaintEvent *event)
                 QPoint(mx, my),
                 QPoint(axisMinX, axisMaxX),
                 QPoint(axisMinY, axisMaxY),
+                mDataYBounds,
                 offset
+            );
+        } else if (optShowVolumeGraph &&
+                   mx >= axisMinX &&
+                   mx < axisMaxX &&
+                   my >= axisMaxY &&
+                   my < axisMaxY + mAxisYVolumeHeight &&
+                   mIsMouseEnter
+        ) {
+            // если отображаем график объема и находимся в его области
+            setCursor(Qt::CrossCursor);
+            // оси и риски
+            drawAxisLines(
+                painter,
+                mMouseVolumeLabelPen,
+                QPoint(mx, my),
+                QPoint(axisMinX, axisMaxX),
+                QPoint(axisMinY, axisMaxY),
+                offset
+            );
+            // метки на осях координат
+            drawAxisLabels(
+                painter,
+                QPoint(mx, my),
+                QPoint(axisMinX, axisMaxX),
+                QPoint(axisMaxY, axisMaxY + mAxisYVolumeHeight),
+                mVolumeBounds,
+                0
             );
         } else {
             setCursor(Qt::ArrowCursor);
@@ -672,6 +713,7 @@ void Widget::drawAxisLabels(
     const QPoint &pos,
     const QPoint &axisXBounds,
     const QPoint &axisYBounds,
+    const QPointF dataYBounds,
     int offset
 ) const
 {
@@ -709,7 +751,7 @@ void Widget::drawAxisLabels(
     // значения надо отображать "зеркально"
     float valueY = getCurrentDataValue(
         axisYBounds,
-        mDataYBounds,
+        dataYBounds,
         axisYBounds.y() - (pos.y() - axisYBounds.x())
     );
     painter->drawText(
@@ -717,4 +759,40 @@ void Widget::drawAxisLabels(
         Qt::AlignCenter,
         makeAxisLabel(valueY)
     );
+}
+
+void Widget::drawAxisLines(
+    QPainter *painter,
+    const QPen &axisLabelsPen,
+    const QPoint &pos,
+    const QPoint &axisXBounds,
+    const QPoint &axisYBounds,
+    int offset,
+    bool isDrawDashs
+) const
+{
+    QPen axisPen = QPen(axisLabelsPen);
+    axisPen.setStyle(Qt::DashLine);
+    painter->setPen(axisPen);
+    // оси
+    painter->drawLine(
+        QPoint(pos.x(), axisYBounds.x()),
+        QPoint(pos.x(), axisYBounds.y() + offset + mAxisXDashLen)
+    );
+    painter->drawLine(
+        QPoint(axisXBounds.x(), pos.y()),
+        QPoint(axisXBounds.y() + mAxisYDashLen, pos.y())
+    );
+    painter->setPen(axisLabelsPen);
+    // риски
+    if (isDrawDashs) {
+        painter->drawLine(
+            QPoint(pos.x(), axisYBounds.y() + offset),
+            QPoint(pos.x(), axisYBounds.y() + offset + mAxisXDashLen)
+        );
+        painter->drawLine(
+            QPoint(axisXBounds.y(), pos.y()),
+            QPoint(axisXBounds.y() + mAxisYDashLen, pos.y())
+        );
+    }
 }

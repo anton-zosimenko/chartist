@@ -56,8 +56,17 @@ private:
         QPainter *painter,
         const QPoint &pos,
         const QPoint &axisXBounds,
-        const QPoint &axisYBounds,
+        const QPoint &axisYBounds, const QPointF dataYBounds,
         int offset
+    ) const;
+    void drawAxisLines(
+        QPainter *painter,
+        const QPen &axisLabelsPen,
+        const QPoint &pos,
+        const QPoint &axisXBounds,
+        const QPoint &axisYBounds,
+        int offset,
+        bool isDrawDashs=true
     ) const;
 
     QPointF mDataXBounds;
@@ -74,7 +83,9 @@ private:
     QBrush mBackgroundBrush;
     QPen mAxisPen;
     QPen mMouseAxisPen;
+    QPen mMouseAxisVolumePen;
     QPen mMouseLabelPen;
+    QPen mMouseVolumeLabelPen;
     QPen mMouseSelectAreaPen;
     int mMouseSelectAreaBrushAlpha;
     QPen mMouseSelectAreaLabelsPen;
@@ -89,6 +100,7 @@ private:
     int mAxisYBottomBorderLength;
     int mAxisXDashCount;
     int mAxisYDashCount;
+    int mAxisYVolumeDashCount;
     int mAxisXDashLen;
     int mAxisYDashLen;
     int mAxisXDashSpace;
