@@ -26,9 +26,10 @@ Widget::Widget(QWidget *parent, const QString &fileName)
     mMousePressPos = QPoint(-1, -1);
     mMouseReleasePos = QPoint(-1, -1);
     mIsMouseEnter = false;
-    mIsMousePressed = false;
+    mIsLmbMousePressed = false;
     mIsResize = false;
     mIsCandleWidthChanged = false;
+    mIsNeedClearArea = false;
 
     mBackgroundBrush = QBrush(Qt::white);
     mAxisPen = QPen(Qt::black, 1);
@@ -160,15 +161,13 @@ void Widget::enterEvent(QEvent *event)
 
 void Widget::mousePressEvent(QMouseEvent *event)
 {
+    mMousePressPos = event->pos();
     if (optSelectAreaWithMouse) {
         if (event->button() == Qt::LeftButton) {
-            mIsMousePressed = true;
-            mMousePressPos = event->pos();
+            mIsLmbMousePressed = true;
             update();
         } else if (event->button() == Qt::RightButton) {
-            mIsMousePressed = false;
-            mMousePressPos = QPoint(-1, -1);
-            mMouseReleasePos = QPoint(-1, -1);
+            mIsNeedClearArea = true;
             update();
         }
     }
@@ -176,13 +175,8 @@ void Widget::mousePressEvent(QMouseEvent *event)
 
 void Widget::mouseReleaseEvent(QMouseEvent *event)
 {
-    if (optSelectAreaWithMouse) {
-        if (event->button() == Qt::LeftButton) {
-            mIsMousePressed = false;
-            mMouseReleasePos = event->pos();
-            update();
-        }
-    }
+    mIsLmbMousePressed = false;
+    mMouseReleasePos = event->pos();
 }
 
 void Widget::resizeEvent(QResizeEvent *event)
@@ -419,28 +413,24 @@ void Widget::paint(QPainter *painter, QPaintEvent *event)
 
     // нарисуем выделение области на графике
     if (optSelectAreaWithMouse) {
-        int mx1 = mMousePressPos.x();
-        int my1 = mMousePressPos.y();
+        // обработаем команду стирания области
+        if (mIsNeedClearArea) {
+            mMousePressPos = QPoint(-1, -1);
+            mMouseReleasePos = QPoint(-1, -1);
+            mIsNeedClearArea = false;
+        }
+        int mx1 = -1;
+        int my1 = -1;
+        if (mMousePressPos.x() >= axisMinX &&
+            mMousePressPos.x() < axisMaxX &&
+            mMousePressPos.y() >= axisMinY &&
+            mMousePressPos.y() < axisMaxY
+        ) {
+            mx1 = mMousePressPos.x();
+            my1 = mMousePressPos.y();
+        }
+        // оси выделенной области не должны выходить за основные оси
         if (mx1 != -1 && my1 != -1) {
-            // оси выделенной области не должны выходить за основные оси
-            if (mx1 < axisMinX) {
-                mx1 = axisMinX;
-            }
-            if (mx1 > axisMaxX - 1) {
-                mx1 = axisMaxX - 1;
-            }
-            if (my1 < axisMinY) {
-                my1 = axisMinY;
-            }
-            if (my1 > axisMaxY - 1) {
-                my1 = axisMaxY - 1;
-            }
-            // оси и риски
-            // риски рисуем только если клик был внутри области графика
-            bool isDrawDashs = mMousePressPos.x() >= axisMinX &&
-                mMousePressPos.x() < axisMaxX &&
-                mMousePressPos.y() >= axisMinY &&
-                mMousePressPos.y() < axisMaxY;
             drawAxisLines(
                 painter,
                 mMouseSelectAreaLabelsPen,
@@ -448,7 +438,7 @@ void Widget::paint(QPainter *painter, QPaintEvent *event)
                 QPoint(axisMinX, axisMaxX),
                 QPoint(axisMinY, axisMaxY),
                 offset,
-                isDrawDashs
+                true
             );
             // метки на осях координат
             drawAxisLabels(
@@ -459,9 +449,9 @@ void Widget::paint(QPainter *painter, QPaintEvent *event)
                 mDataYBounds,
                 offset
             );
-            int mx2 = mIsMousePressed ? mMousePos.x() : mMouseReleasePos.x();
-            int my2 = mIsMousePressed ? mMousePos.y() : mMouseReleasePos.y();
-            if ((mx2 != -1 && my2 != -1) || mIsMousePressed) {
+            int mx2 = mIsLmbMousePressed ? mMousePos.x() : mMouseReleasePos.x();
+            int my2 = mIsLmbMousePressed ? mMousePos.y() : mMouseReleasePos.y();
+            if ((mx2 != -1 && my2 != -1) || mIsLmbMousePressed) {
                 // оси выделенной области не должны выходить за основные оси
                 if (mx2 < axisMinX) {
                     mx2 = axisMinX;
@@ -477,10 +467,10 @@ void Widget::paint(QPainter *painter, QPaintEvent *event)
                 }
                 // оси и риски
                 // риски рисуем только если клик был внутри области графика
-                isDrawDashs = (mIsMousePressed ? mMousePos.x() : mMouseReleasePos.x()) >= axisMinX &&
-                    (mIsMousePressed ? mMousePos.x() : mMouseReleasePos.x()) < axisMaxX &&
-                    (mIsMousePressed ? mMousePos.y() : mMouseReleasePos.y()) >= axisMinY &&
-                    (mIsMousePressed ? mMousePos.y() : mMouseReleasePos.y()) < axisMaxY;
+                bool isDrawDashs = (mIsLmbMousePressed ? mMousePos.x() : mMouseReleasePos.x()) >= axisMinX &&
+                    (mIsLmbMousePressed ? mMousePos.x() : mMouseReleasePos.x()) < axisMaxX &&
+                    (mIsLmbMousePressed ? mMousePos.y() : mMouseReleasePos.y()) >= axisMinY &&
+                    (mIsLmbMousePressed ? mMousePos.y() : mMouseReleasePos.y()) < axisMaxY;
                 drawAxisLines(
                     painter,
                     mMouseSelectAreaLabelsPen,
@@ -575,7 +565,7 @@ void Widget::paint(QPainter *painter, QPaintEvent *event)
             setCursor(Qt::CrossCursor);
             // если включено выделение области мышкой, и нажата кнопка мыши
             // не будем рисовать оси и риски, потому что они затрутся
-            if (optSelectAreaWithMouse && mIsMousePressed) {
+            if (optSelectAreaWithMouse && mIsLmbMousePressed) {
                 painter->setPen(mMouseSelectAreaLabelsPen);
             } else {
                 // оси и риски
@@ -587,22 +577,22 @@ void Widget::paint(QPainter *painter, QPaintEvent *event)
                     QPoint(axisMinY, axisMaxY),
                     offset
                 );
+                // метки на осях координат
+                drawAxisLabels(
+                    painter,
+                    QPoint(mx, my),
+                    QPoint(axisMinX, axisMaxX),
+                    QPoint(axisMinY, axisMaxY),
+                    mDataYBounds,
+                    offset
+                );
             }
-            // метки на осях координат
-            drawAxisLabels(
-                painter,
-                QPoint(mx, my),
-                QPoint(axisMinX, axisMaxX),
-                QPoint(axisMinY, axisMaxY),
-                mDataYBounds,
-                offset
-            );
         } else if (optShowVolumeGraph &&
-                   mx >= axisMinX &&
-                   mx < axisMaxX &&
-                   my >= axisMaxY &&
-                   my < axisMaxY + mAxisYVolumeHeight &&
-                   mIsMouseEnter
+            mx >= axisMinX &&
+            mx < axisMaxX &&
+            my >= axisMaxY &&
+            my < axisMaxY + mAxisYVolumeHeight &&
+            mIsMouseEnter
         ) {
             // если отображаем график объема и находимся в его области
             setCursor(Qt::CrossCursor);
@@ -691,6 +681,14 @@ void Widget::paint(QPainter *painter, QPaintEvent *event)
         }
         // нарисуем текущее отображаемое окно на скроллбаре
         float areaWidth = 1.0 * mViewedCandleCount / mDataSeries.size() * (axisMaxX - axisMinX);
+        float areaStart = 1.0 * mCandleOffsetFromEnd /  mDataSeries.size() * (axisMaxX - axisMinX);
+        // рисуем с правого края, поэтому координаты по Х инвертим
+        painter->drawRect(
+            QRectF(
+                QPointF(axisMaxX - areaStart, maxY - 1),
+                QPointF(axisMaxX - areaWidth, maxY - mAxisYScrollBarHeight)
+            )
+        );
     }
 }
 

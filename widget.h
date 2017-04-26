@@ -80,9 +80,10 @@ private:
     QPoint mMousePressPos;
     QPoint mMouseReleasePos;
     bool mIsMouseEnter;
-    bool mIsMousePressed;
+    bool mIsLmbMousePressed;
     bool mIsResize;
     bool mIsCandleWidthChanged;
+    bool mIsNeedClearArea;
 
     QBrush mBackgroundBrush;
     QPen mAxisPen;
