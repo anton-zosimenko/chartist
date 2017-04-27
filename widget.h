@@ -79,11 +79,16 @@ private:
     QPoint mMousePos;
     QPoint mMousePressPos;
     QPoint mMouseReleasePos;
+    QPoint mMouseGraphPressPos;
+    QPoint mMouseGraphReleasePos;
     bool mIsMouseEnter;
     bool mIsLmbMousePressed;
+    bool mIsLmbMousePress;
+    bool mIsLmbMouseRelease;
     bool mIsResize;
     bool mIsCandleWidthChanged;
     bool mIsNeedClearArea;
+    bool mIsMousePressInGraph;
 
     QBrush mBackgroundBrush;
     QPen mAxisPen;
