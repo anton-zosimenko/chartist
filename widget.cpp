@@ -52,6 +52,7 @@ Widget::Widget(QWidget *parent, const QString &fileName)
     mCandleUpBrush = QBrush(Qt::green);
     mCandleDownBrush = QBrush(Qt::red);
     mCandleBrushAlpha = 80;
+    mScrollBarPen = QPen(Qt::darkGray, 1);
 
     mAxisXLeftBorderLength = 0;
     mAxisXRightBorderLength = 52;
@@ -440,14 +441,12 @@ void Widget::paint(QPainter *painter, QPaintEvent *event)
             } else {
                 mIsMousePressInGraph = false;
             }
-            mIsLmbMousePress = false;
         }
         // обработаем команду снятия нажатия лкм
         if (mIsLmbMouseRelease) {
             if (mIsMousePressInGraph) {
                 mMouseGraphReleasePos = mMouseReleasePos;
             }
-            mIsLmbMouseRelease = false;
         }
         int mx1 = mMouseGraphPressPos.x();
         int my1 = mMouseGraphPressPos.y();
@@ -641,75 +640,101 @@ void Widget::paint(QPainter *painter, QPaintEvent *event)
     }
 
     // нарисуем скроллбар, если нужно
-    if (optShowScrollArea && mViewedCandleCount < (int)mDataSeries.size()) {
-        float scaledCandleWidth = 1.0 * (axisMaxX - axisMinX) / mDataSeries.size();
-        int mergedCounter = 1;
-        if (scaledCandleWidth < 1) {
-            mergedCounter = ceil(1 / scaledCandleWidth);
-            scaledCandleWidth *= mergedCounter;
+    if (optShowScrollArea) {
+        QPoint xScale = QPoint (axisMinX, axisMaxX);
+        QPoint yScale = QPoint(maxY - mAxisYScrollBarHeight, maxY);
+
+        // обработаем клик про скроллбару
+        if (mIsLmbMousePress) {
+            if (true) {}
         }
-        // рисуем с конца графика
-        float startX = axisMaxX;
-        int startIndex = mDataSeries.size() - 1;
-        int windowsCount = ceil(1.0 * mDataSeries.size() / mergedCounter);
-        QPointF dataBounds = QPointF(
-            mDataSeries.globalLow(),
-            mDataSeries.globalHigh()
-        );
-        for (int i = 0; i < windowsCount; ++i) {
-            // мержим свечи, для того чтоб получить упрощенную свечу окна
-            float high = 0, low = INFINITY;
-            float open = mDataSeries.data()[startIndex].open;
-            for (int j = 0; j < mergedCounter; ++j) {
-                if (mDataSeries.data()[startIndex].high > high) {
-                    high = mDataSeries.data()[startIndex].high;
-                }
-                if (mDataSeries.data()[startIndex].low < low) {
-                    low = mDataSeries.data()[startIndex].low;
-                }
-                startIndex--;
-                // количевство свечей в окнах округлено, поэтому последнее окно
-                // может быть неполным, проверяем чтоб не выйти за границы
-                if (startIndex < 0) {
-                    break;
-                }
+        if (mViewedCandleCount < (int)mDataSeries.size()) {
+            float scaledCandleWidth = 1.0 * (xScale.y() - xScale.x()) /
+                mDataSeries.size();
+            int mergedCounter = 1;
+            if (scaledCandleWidth < 1) {
+                mergedCounter = ceil(1 / scaledCandleWidth);
+                scaledCandleWidth *= mergedCounter;
             }
-            float close = mDataSeries.data()[startIndex].close;
-            // определим цвет свечи по разнице открытия и закрытия
-            QColor color = (close > open ? mCandleUpBrush : mCandleDownBrush).color();
-            // скроллбар расположен в самом низу виджета, поэтому область для
-            // рисования определяем от самого низа
-            QPoint yScale = QPoint(
-                maxY - mAxisYScrollBarHeight,
-                maxY
+            // рисуем с конца графика
+            float startX = xScale.y();
+            int startIndex = mDataSeries.size() - 1;
+            int windowsCount = ceil(1.0 * mDataSeries.size() / mergedCounter);
+            QPointF dataBounds = QPointF(
+                mDataSeries.globalLow(),
+                mDataSeries.globalHigh()
             );
-            float ymax = getCurrentAxisValue(yScale, dataBounds, high);
-            float ymin = getCurrentAxisValue(yScale, dataBounds, low);
-            QRectF candleRect = QRectF(
-                QPointF(startX, yScale.y() - (ymax - yScale.x())),
-                QPointF(startX - scaledCandleWidth, yScale.y() - (ymin - yScale.x()))
+            for (int i = 0; i < windowsCount; ++i) {
+                // мержим свечи, для того чтоб получить упрощенную свечу окна
+                float high = 0, low = INFINITY;
+                float open = mDataSeries.data()[startIndex].open;
+                for (int j = 0; j < mergedCounter; ++j) {
+                    if (mDataSeries.data()[startIndex].high > high) {
+                        high = mDataSeries.data()[startIndex].high;
+                    }
+                    if (mDataSeries.data()[startIndex].low < low) {
+                        low = mDataSeries.data()[startIndex].low;
+                    }
+                    startIndex--;
+                    // количевство свечей в окнах округлено, поэтому последнее окно
+                    // может быть неполным, проверяем чтоб не выйти за границы
+                    if (startIndex < 0) {
+                        break;
+                    }
+                }
+                float close = mDataSeries.data()[startIndex].close;
+                // определим цвет свечи по разнице открытия и закрытия
+                QColor color = (
+                        close > open ? mCandleUpBrush : mCandleDownBrush
+                    ).color();
+                // скроллбар расположен в самом низу виджета, поэтому область для
+                // рисования определяем от самого низа
+                float ymax = getCurrentAxisValue(yScale, dataBounds, high);
+                float ymin = getCurrentAxisValue(yScale, dataBounds, low);
+                QRectF candleRect = QRectF(
+                    QPointF(
+                        startX,
+                        yScale.y() - (ymax - yScale.x())
+                    ),
+                    QPointF(
+                        startX - scaledCandleWidth,
+                        yScale.y() - (ymin - yScale.x())
+                    )
+                );
+                // цветоное тело свечи
+                painter->fillRect(
+                    candleRect,
+                    QBrush(color)
+                );
+                // контур свечи
+                painter->setPen(QPen(color));
+                painter->drawRect(candleRect);
+                // скорректируем текущую координату для рисования
+                startX -= scaledCandleWidth;
+            }
+            // нарисуем текущее отображаемое окно на скроллбаре
+            float areaWidth = 1.0 * mViewedCandleCount / mDataSeries.size() *
+                (xScale.y() - xScale.x());
+            float areaStart = 1.0 * mCandleOffsetFromEnd / mDataSeries.size() *
+                (xScale.y() - xScale.x());
+            // рисуем с правого края, поэтому координаты по Х инвертим
+            painter->setPen(mScrollBarPen);
+            painter->drawRect(
+                QRectF(
+                    QPointF(xScale.y() - areaStart, yScale.y() - 1),
+                    QPointF(xScale.y() - areaWidth, yScale.x())
+                )
             );
-            // цветоное тело свечи
-            painter->fillRect(
-                candleRect,
-                QBrush(color)
-            );
-            // контур свечи
-            painter->setPen(QPen(color));
-            painter->drawRect(candleRect);
-            // скорректируем текущую координату для рисования
-            startX -= scaledCandleWidth;
         }
-        // нарисуем текущее отображаемое окно на скроллбаре
-        float areaWidth = 1.0 * mViewedCandleCount / mDataSeries.size() * (axisMaxX - axisMinX);
-        float areaStart = 1.0 * mCandleOffsetFromEnd /  mDataSeries.size() * (axisMaxX - axisMinX);
-        // рисуем с правого края, поэтому координаты по Х инвертим
-        painter->drawRect(
-            QRectF(
-                QPointF(axisMaxX - areaStart, maxY - 1),
-                QPointF(axisMaxX - areaWidth, maxY - mAxisYScrollBarHeight)
-            )
-        );
+    }
+
+    // завершим обработку нажатия лкм
+    if (mIsLmbMousePress) {
+        mIsLmbMousePress = false;
+    }
+    // завершим обработку снятия нажатия лкм
+    if (mIsLmbMouseRelease) {
+        mIsLmbMouseRelease = false;
     }
 }
 
