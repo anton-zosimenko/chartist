@@ -100,6 +100,7 @@ private:
     int mMouseSelectAreaBrushAlpha;
     QPen mMouseSelectAreaLabelsPen;
     QPen mCandlePen;
+    QPen mScrollBarPen;
     QBrush mCandleUpBrush;
     QBrush mCandleDownBrush;
     int mCandleBrushAlpha;
